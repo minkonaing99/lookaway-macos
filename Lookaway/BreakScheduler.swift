@@ -131,6 +131,20 @@ final class BreakScheduler: ObservableObject {
         }
     }
 
+    enum PreAlertPresentation: String, CaseIterable, Identifiable {
+        case pointerCountdown
+        case centerBanner
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .pointerCountdown: return "Countdown beside pointer"
+            case .centerBanner: return "Center-screen banner"
+            }
+        }
+    }
+
     struct StatsSnapshot {
         let dailyCompleted: Int
         let dailySkipped: Int
@@ -211,13 +225,13 @@ final class BreakScheduler: ObservableObject {
         didSet { persist(enablePreAlert, key: Keys.preAlertEnabled) }
     }
 
-    @Published var showPointerCountdown: Bool {
+    @Published var preAlertPresentation: PreAlertPresentation {
         didSet {
-            persist(showPointerCountdown, key: Keys.pointerCountdownEnabled)
-            if !showPointerCountdown {
-                pointerCountdownController.hide()
+            persist(preAlertPresentation.rawValue, key: Keys.preAlertPresentation)
+            Task { @MainActor [weak self] in
+                self?.clearPreAlertUI()
+                self?.refreshDerivedState(now: .now)
             }
-            refreshDerivedState(now: .now)
         }
     }
 
@@ -370,6 +384,7 @@ final class BreakScheduler: ObservableObject {
 
     private let overlayController = RestOverlayController()
     private let pointerCountdownController = PointerCountdownOverlayController()
+    private let centerPreBreakBannerController = CenterPreBreakBannerController()
     private let eventStore = EKEventStore()
     private var ticker: Timer?
     private var isApplyingPreset = false
@@ -377,6 +392,7 @@ final class BreakScheduler: ObservableObject {
     private var isRunningBreakTest = false
     private var isShowingTestBreak = false
     private var savedNextBreakDateForTest: Date?
+    private var shownCenterBannerMilestones: Set<Int> = []
     private var autoPauseReasons: Set<String> = []
     private var dayStats: [String: DailyCounters]
     private var workspaceObservers: [Any] = []
@@ -392,6 +408,7 @@ final class BreakScheduler: ObservableObject {
         static let protocolPreset = "lookaway.protocolPreset"
         static let breakStyle = "lookaway.breakStyle"
         static let preAlertEnabled = "lookaway.preAlert"
+        static let preAlertPresentation = "lookaway.preAlertPresentation"
         static let pointerCountdownEnabled = "lookaway.pointerCountdownEnabled"
         static let dimAmount = "lookaway.dimAmount"
         static let showDisplayLabel = "lookaway.displayLabel"
@@ -423,7 +440,16 @@ final class BreakScheduler: ObservableObject {
         protocolPreset = BreakProtocolPreset(rawValue: defaults.string(forKey: Keys.protocolPreset) ?? "") ?? .custom
         breakStyle = BreakStyle(rawValue: defaults.string(forKey: Keys.breakStyle) ?? "") ?? .eyes
         enablePreAlert = defaults.object(forKey: Keys.preAlertEnabled) as? Bool ?? true
-        showPointerCountdown = defaults.object(forKey: Keys.pointerCountdownEnabled) as? Bool ?? true
+        let savedPreAlertPresentation = defaults.string(forKey: Keys.preAlertPresentation)
+        let legacyPointerCountdownEnabled = defaults.object(forKey: Keys.pointerCountdownEnabled) as? Bool
+        if let savedPreAlertPresentation,
+           let presentation = PreAlertPresentation(rawValue: savedPreAlertPresentation) {
+            preAlertPresentation = presentation
+        } else if legacyPointerCountdownEnabled == false {
+            preAlertPresentation = .centerBanner
+        } else {
+            preAlertPresentation = .pointerCountdown
+        }
         restOverlayDimAmount = defaults.object(forKey: Keys.dimAmount) as? Double ?? 0.65
         showPerDisplayLabel = defaults.object(forKey: Keys.showDisplayLabel) as? Bool ?? true
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? LaunchAtLoginManager.isEnabled()
@@ -501,8 +527,9 @@ final class BreakScheduler: ObservableObject {
         isRunningBreakTest = true
         isShowingTestBreak = false
         preAlertTriggeredThisCycle = false
+        shownCenterBannerMilestones.removeAll()
         lastBreakReasonText = "Test countdown started"
-        nextBreakDate = .now.addingTimeInterval(10)
+        nextBreakDate = .now.addingTimeInterval(preAlertPresentation == .centerBanner ? 35 : 10)
         refreshDerivedState(now: .now)
     }
 
@@ -570,6 +597,7 @@ final class BreakScheduler: ObservableObject {
             Keys.protocolPreset,
             Keys.breakStyle,
             Keys.preAlertEnabled,
+            Keys.preAlertPresentation,
             Keys.pointerCountdownEnabled,
             Keys.dimAmount,
             Keys.showDisplayLabel,
@@ -599,7 +627,7 @@ final class BreakScheduler: ObservableObject {
         protocolPreset = .custom
         breakStyle = .eyes
         enablePreAlert = true
-        showPointerCountdown = true
+        preAlertPresentation = .pointerCountdown
         restOverlayDimAmount = 0.65
         showPerDisplayLabel = true
         scheduleEnabled = false
@@ -640,7 +668,7 @@ final class BreakScheduler: ObservableObject {
             protocolPreset = .custom
             breakStyle = .eyes
             enablePreAlert = true
-            showPointerCountdown = true
+            preAlertPresentation = .pointerCountdown
             focusBlocksEnabled = false
         case .eyeCare202020:
             intervalOption = .min20
@@ -648,21 +676,21 @@ final class BreakScheduler: ObservableObject {
             protocolPreset = .eyeCare202020
             breakStyle = .eyes
             enablePreAlert = true
-            showPointerCountdown = true
+            preAlertPresentation = .pointerCountdown
         case .pomodoro:
             intervalOption = .min25
             restDurationOption = .min5
             protocolPreset = .pomodoro
             breakStyle = .stretch
             enablePreAlert = true
-            showPointerCountdown = true
+            preAlertPresentation = .pointerCountdown
         case .deepWork:
             intervalOption = .min30
             restDurationOption = .sec30
             protocolPreset = .custom
             breakStyle = .stretch
             enablePreAlert = false
-            showPointerCountdown = false
+            preAlertPresentation = .centerBanner
             focusBlocksEnabled = true
         }
         isApplyingPreset = false
@@ -734,13 +762,14 @@ final class BreakScheduler: ObservableObject {
         if (effectivePreAlertEnabled || isRunningBreakTest), remaining <= 30, remaining > 0 {
             if !preAlertTriggeredThisCycle {
                 preAlertTriggeredThisCycle = true
-                NSSound.beep()
             }
             isInPreAlert = true
-            if showPointerCountdown || isRunningBreakTest {
+            if preAlertPresentation == .pointerCountdown {
                 pointerCountdownController.show(secondsRemaining: Int(ceil(remaining)))
+                centerPreBreakBannerController.hide()
             } else {
                 pointerCountdownController.hide()
+                showCenterBannerIfNeeded(secondsRemaining: Int(ceil(remaining)))
             }
         } else {
             clearPreAlertUI()
@@ -785,6 +814,7 @@ final class BreakScheduler: ObservableObject {
     private func scheduleNextBreak(from base: Date) {
         nextBreakDate = base.addingTimeInterval(effectiveIntervalSeconds)
         preAlertTriggeredThisCycle = false
+        shownCenterBannerMilestones.removeAll()
         clearPreAlertUI()
         refreshDerivedState(now: base)
     }
@@ -874,7 +904,12 @@ final class BreakScheduler: ObservableObject {
         case .none:
             currentStateTitle = isInPreAlert ? "Break soon" : "Working"
             if isInPreAlert {
-                currentStateExplanation = "Countdown is active near the pointer. Break starts at \(nextBreakClockText)."
+                switch preAlertPresentation {
+                case .pointerCountdown:
+                    currentStateExplanation = "Countdown is active near the pointer. Break starts at \(nextBreakClockText)."
+                case .centerBanner:
+                    currentStateExplanation = "A soft center-screen banner is active. Break starts at \(nextBreakClockText)."
+                }
             } else {
                 currentStateExplanation = "Next coffee reset is scheduled for \(nextBreakClockText)."
             }
@@ -885,6 +920,18 @@ final class BreakScheduler: ObservableObject {
     private func clearPreAlertUI() {
         isInPreAlert = false
         pointerCountdownController.hide()
+        centerPreBreakBannerController.hide()
+    }
+
+    private func showCenterBannerIfNeeded(secondsRemaining: Int) {
+        let milestones = [30, 5]
+
+        for milestone in milestones where secondsRemaining <= milestone && !shownCenterBannerMilestones.contains(milestone) {
+            shownCenterBannerMilestones.insert(milestone)
+            let unit = milestone == 1 ? "second" : "seconds"
+            centerPreBreakBannerController.show(message: "Break in \(milestone) \(unit)")
+            break
+        }
     }
 
     private func finishBreakTest() {

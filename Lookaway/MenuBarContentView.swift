@@ -9,7 +9,10 @@ struct MenuBarContentView: View {
             statusHero
 
             if scheduler.isInPreAlert {
-                Label(scheduler.showPointerCountdown ? "Break soon near pointer" : "Break soon", systemImage: "bell.badge")
+                Label(
+                    scheduler.preAlertPresentation == .pointerCountdown ? "Break soon near pointer" : "Break soon on screen",
+                    systemImage: "bell.badge"
+                )
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
             }
@@ -305,23 +308,6 @@ struct PreferencesContentView: View {
                 }
             }
 
-            settingsCard(title: "Overlay Feel", subtitle: "Keep the break visible without making it heavy.") {
-                Toggle("Enable 30s pre-alert", isOn: $scheduler.enablePreAlert)
-                Toggle("Show countdown beside pointer", isOn: $scheduler.showPointerCountdown)
-                    .disabled(!scheduler.enablePreAlert)
-                Toggle("Show display name on overlay", isOn: $scheduler.showPerDisplayLabel)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Overlay dim")
-                        Spacer()
-                        Text(dimLabel)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $scheduler.restOverlayDimAmount, in: 0.35...0.9)
-                }
-            }
         }
     }
 
@@ -386,6 +372,29 @@ struct PreferencesContentView: View {
                 Toggle("Pause on lock/sleep", isOn: $scheduler.pauseOnSystemIdle)
             }
 
+            settingsCard(title: "Overlay Feel", subtitle: "Keep the break visible without making it heavy.") {
+                Toggle("Enable 30s pre-alert", isOn: $scheduler.enablePreAlert)
+                Picker("Pre-break cue", selection: $scheduler.preAlertPresentation) {
+                    ForEach(BreakScheduler.PreAlertPresentation.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!scheduler.enablePreAlert)
+                Toggle("Show display name on overlay", isOn: $scheduler.showPerDisplayLabel)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Overlay dim")
+                        Spacer()
+                        Text(dimLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $scheduler.restOverlayDimAmount, in: 0.35...0.9)
+                }
+            }
+
             settingsCard(title: "Device Awareness", subtitle: "Adapt reminders to power and display context.") {
                 Toggle("Adapt reminder timing by display context", isOn: $scheduler.deviceAwareModeEnabled)
                 Toggle("Lower intensity on battery / low power mode", isOn: $scheduler.reduceIntensityOnBattery)
@@ -394,7 +403,7 @@ struct PreferencesContentView: View {
             }
 
             settingsCard(title: "Testing", subtitle: "Preview the pointer countdown and overlay without waiting.") {
-                Button("Test Countdown + Break") {
+                Button(scheduler.preAlertPresentation == .centerBanner ? "Test Banner + Break" : "Test Countdown + Break") {
                     scheduler.runBreakTest()
                 }
                 .buttonStyle(.borderedProminent)

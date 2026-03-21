@@ -10,7 +10,6 @@ final class PointerCountdownOverlayController {
     deinit {
         trackingTimer?.invalidate()
         trackingTimer = nil
-        window?.orderOut(nil)
     }
 
     func show(secondsRemaining: Int) {
