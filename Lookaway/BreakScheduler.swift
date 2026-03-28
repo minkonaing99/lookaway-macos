@@ -242,7 +242,6 @@ final class BreakScheduler: ObservableObject {
     @Published var calendarDetailText = "LookAway can delay breaks while you are in active meetings."
     @Published var deviceContextText = "Display context: unknown"
     @Published var powerContextText = "Power context: unknown"
-    var stats: StatsSnapshot
     @Published var extendedStats: ExtendedStatsSnapshot
     @Published var showBreakCompletionBadge = false
     @Published var timeRemainingMinutesText = "0 min"
@@ -351,7 +350,6 @@ final class BreakScheduler: ObservableObject {
         pauseWhenCameraActive = defaults.object(forKey: Keys.pauseWhenCameraActive) as? Bool ?? false
 
         dayStats = Self.loadStats()
-        stats = StatsSnapshot(dailyCompleted: 0, dailySkipped: 0, dailySnoozed: 0, weeklyCompleted: 0, weeklySkipped: 0, weeklySnoozed: 0)
         extendedStats = .empty
         nextBreakDate = now.addingTimeInterval(loadedInterval.seconds)
 
