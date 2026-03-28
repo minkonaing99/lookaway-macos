@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		D01D5A0A2F57099300BCF2EE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D01D59152F57099300BCF2EE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D01D591C2F57099300BCF2EE;
+			remoteInfo = Lookaway;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		D01D591D2F57099300BCF2EE /* Lookaway.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lookaway.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D01D5A012F57099300BCF2EE /* LookawayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LookawayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = Lookaway;
 			sourceTree = "<group>";
 		};
+		D01D5A022F57099300BCF2EE /* LookawayTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LookawayTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D01D591A2F57099300BCF2EE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D01D5A042F57099300BCF2EE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				D01D591F2F57099300BCF2EE /* Lookaway */,
+				D01D5A022F57099300BCF2EE /* LookawayTests */,
 				D01D591E2F57099300BCF2EE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				D01D591D2F57099300BCF2EE /* Lookaway.app */,
+				D01D5A012F57099300BCF2EE /* LookawayTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,28 @@
 			productReference = D01D591D2F57099300BCF2EE /* Lookaway.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D01D5A052F57099300BCF2EE /* LookawayTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D01D5A082F57099300BCF2EE /* Build configuration list for PBXNativeTarget "LookawayTests" */;
+			buildPhases = (
+				D01D5A032F57099300BCF2EE /* Sources */,
+				D01D5A042F57099300BCF2EE /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D01D5A092F57099300BCF2EE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D01D5A022F57099300BCF2EE /* LookawayTests */,
+			);
+			name = LookawayTests;
+			packageProductDependencies = (
+			);
+			productName = LookawayTests;
+			productReference = D01D5A012F57099300BCF2EE /* LookawayTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +129,10 @@
 				TargetAttributes = {
 					D01D591C2F57099300BCF2EE = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					D01D5A052F57099300BCF2EE = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = D01D591C2F57099300BCF2EE;
 					};
 				};
 			};
@@ -100,6 +151,7 @@
 			projectRoot = "";
 			targets = (
 				D01D591C2F57099300BCF2EE /* Lookaway */,
+				D01D5A052F57099300BCF2EE /* LookawayTests */,
 			);
 		};
 /* End PBXProject section */
@@ -122,7 +174,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D01D5A032F57099300BCF2EE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D01D5A092F57099300BCF2EE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D01D591C2F57099300BCF2EE /* Lookaway */;
+			targetProxy = D01D5A0A2F57099300BCF2EE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		D01D59262F57099300BCF2EE /* Debug */ = {
@@ -259,6 +326,7 @@
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "LookAway pauses break reminders during active calendar events.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "LookAway reads your calendar to avoid break reminders during events.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "LookAway checks if your camera is in use to avoid interrupting video calls. It does not record or access your camera.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -293,6 +361,7 @@
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "LookAway pauses break reminders during active calendar events.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "LookAway reads your calendar to avoid break reminders during events.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "LookAway checks if your camera is in use to avoid interrupting video calls. It does not record or access your camera.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -308,6 +377,40 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		D01D5A062F57099300BCF2EE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Merxy.LookawayTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lookaway.app/Contents/MacOS/Lookaway";
+			};
+			name = Debug;
+		};
+		D01D5A072F57099300BCF2EE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Merxy.LookawayTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lookaway.app/Contents/MacOS/Lookaway";
 			};
 			name = Release;
 		};
@@ -328,6 +431,15 @@
 			buildConfigurations = (
 				D01D59292F57099300BCF2EE /* Debug */,
 				D01D592A2F57099300BCF2EE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D01D5A082F57099300BCF2EE /* Build configuration list for PBXNativeTarget "LookawayTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D01D5A062F57099300BCF2EE /* Debug */,
+				D01D5A072F57099300BCF2EE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

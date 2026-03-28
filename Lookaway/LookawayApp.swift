@@ -46,6 +46,10 @@ struct LookawayApp: App {
     }
 
     private var menuBarSymbolName: String {
+        if scheduler.showBreakCompletionBadge {
+            return "checkmark.circle.fill"
+        }
+
         let title = scheduler.currentStateTitle
 
         if title == "Paused" {
@@ -62,9 +66,6 @@ struct LookawayApp: App {
         }
         if title == "Break soon" {
             return "bell.badge.fill"
-        }
-        if scheduler.menuBarCountdownText == "Break" {
-            return "cup.and.saucer.fill"
         }
         return "cup.and.saucer.fill"
     }

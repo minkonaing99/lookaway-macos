@@ -10,7 +10,7 @@ struct MenuBarContentView: View {
 
             if scheduler.isInPreAlert {
                 Label(
-                    scheduler.preAlertPresentation == .pointerCountdown ? "Break soon near pointer" : "Break soon on screen",
+                    preAlertLabel,
                     systemImage: "bell.badge"
                 )
                     .font(.caption.weight(.semibold))
@@ -59,6 +59,14 @@ struct MenuBarContentView: View {
         .frame(width: 320)
     }
 
+    private var preAlertLabel: String {
+        switch scheduler.preAlertPresentation {
+        case .pointerCountdown: return "Break soon near pointer"
+        case .centerBanner: return "Break soon on screen"
+        case .notification: return "Break soon — notification sent"
+        }
+    }
+
     private var statusHero: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -93,6 +101,7 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
     case schedule
     case breaks
     case focus
+    case stats
     case advanced
 
     var id: String { rawValue }
@@ -102,6 +111,7 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
         case .schedule: return "Schedule"
         case .breaks: return "Breaks"
         case .focus: return "Focus"
+        case .stats: return "Stats"
         case .advanced: return "Advanced"
         }
     }
@@ -111,6 +121,7 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
         case .schedule: return "Work rhythm"
         case .breaks: return "Reset design"
         case .focus: return "Interruptions"
+        case .stats: return "Your data"
         case .advanced: return "Diagnostics"
         }
     }
@@ -119,7 +130,8 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
         switch self {
         case .schedule: return "Define when LookAway should be active and pick a default rhythm."
         case .breaks: return "Tune the countdown, overlay feel, and the break experience itself."
-        case .focus: return "Control how meetings and focus blocks delay interruptions."
+        case .focus: return "Control how meetings, focus blocks, and specific apps delay interruptions."
+        case .stats: return "Review your break history, streaks, and completion rate."
         case .advanced: return "Adjust menu bar behavior, system adaptation, testing, and local data."
         }
     }
@@ -129,6 +141,7 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
         case .schedule: return "calendar"
         case .breaks: return "cup.and.saucer.fill"
         case .focus: return "moon.stars"
+        case .stats: return "chart.bar.fill"
         case .advanced: return "slider.horizontal.3"
         }
     }
@@ -173,6 +186,8 @@ struct PreferencesContentView: View {
                 breaksPage
             case .focus:
                 focusPage
+            case .stats:
+                statsPage
             case .advanced:
                 advancedPage
             }
@@ -308,6 +323,9 @@ struct PreferencesContentView: View {
                 }
             }
 
+            settingsCard(title: "Custom Break Prompts", subtitle: "Override the default overlay text per break style. Leave empty to use built-in prompts.") {
+                CustomPromptsEditorView(scheduler: scheduler)
+            }
         }
     }
 
@@ -332,18 +350,38 @@ struct PreferencesContentView: View {
                 }
             }
 
-            settingsCard(title: "Focus Blocks", subtitle: "Protect meetings, deep work, or heads-down time.") {
+            settingsCard(title: "Focus Blocks", subtitle: "Protect deep work windows. All listed windows suppress breaks when active.") {
                 Toggle("Enable focus blocks", isOn: $scheduler.focusBlocksEnabled)
 
-                HStack(spacing: 16) {
-                    hourPicker(title: "Start", selection: $scheduler.focusStartHour)
-                    hourPicker(title: "End", selection: $scheduler.focusEndHour)
+                if !scheduler.focusBlockWindows.isEmpty {
+                    VStack(spacing: 10) {
+                        ForEach(scheduler.focusBlockWindows) { window in
+                            FocusBlockWindowEditorView(scheduler: scheduler, window: window)
+                        }
+                    }
                 }
 
-                weekdayChipRow(
-                    title: "Focus weekdays",
-                    selected: scheduler.focusWeekdays,
-                    toggle: { scheduler.toggleFocusWeekday($0) }
+                Button {
+                    scheduler.addFocusBlockWindow()
+                } label: {
+                    Label("Add Focus Block", systemImage: "plus.circle")
+                        .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .disabled(scheduler.focusBlockWindows.count >= 10)
+            }
+
+            settingsCard(title: "App-Aware Pausing", subtitle: "Automatically pause breaks when specific apps are in focus.") {
+                Toggle("Pause when a listed app is active", isOn: $scheduler.appAwarePauseEnabled)
+                AppAwarePauseView(scheduler: scheduler)
+                    .disabled(!scheduler.appAwarePauseEnabled)
+            }
+
+            settingsCard(title: "Camera Detection", subtitle: "Pause breaks when your camera is actively in use by another app.") {
+                Toggle("Pause during active camera use", isOn: $scheduler.pauseWhenCameraActive)
+                statusStrip(
+                    title: "Privacy note",
+                    detail: "LookAway only checks whether your camera is in use. It does not record or access your camera footage."
                 )
             }
 
@@ -354,6 +392,10 @@ struct PreferencesContentView: View {
                 )
             }
         }
+    }
+
+    private var statsPage: some View {
+        StatsDashboardView(extendedStats: scheduler.extendedStats)
     }
 
     private var advancedPage: some View {

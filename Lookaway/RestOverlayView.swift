@@ -6,6 +6,7 @@ struct RestOverlayView: View {
     let style: BreakScheduler.BreakStyle
     let dimAmount: Double
     let displayName: String?
+    let customPrompts: [String]?
     let onDismiss: () -> Void
     let onSkip: () -> Void
 
@@ -20,6 +21,7 @@ struct RestOverlayView: View {
         style: BreakScheduler.BreakStyle,
         dimAmount: Double,
         displayName: String?,
+        customPrompts: [String]?,
         onDismiss: @escaping () -> Void,
         onSkip: @escaping () -> Void
     ) {
@@ -27,6 +29,7 @@ struct RestOverlayView: View {
         self.style = style
         self.dimAmount = dimAmount
         self.displayName = displayName
+        self.customPrompts = customPrompts
         self.onDismiss = onDismiss
         self.onSkip = onSkip
         _secondsRemaining = State(initialValue: restDuration)
@@ -53,10 +56,14 @@ struct RestOverlayView: View {
                         .font(.system(size: 42, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text(rotatingPrompt)
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .frame(maxWidth: 520)
+                    if style == .breathing {
+                        BreathingGuideView()
+                    } else {
+                        Text(rotatingPrompt)
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .frame(maxWidth: 520)
+                    }
                 }
 
                 Text(secondsRemaining > 0 ? "\(secondsRemaining)s" : "Done")
@@ -166,37 +173,9 @@ struct RestOverlayView: View {
     }
 
     private var promptOptions: [String] {
-        switch style {
-        case .eyes:
-            return [
-                "Take a sip of coffee and relax a bit.",
-                "Unclench your jaw and drop your shoulders.",
-                "Look across the room and let your eyes reset."
-            ]
-        case .breathing:
-            return [
-                "Inhale slowly through your nose.",
-                "Hold for a beat, then exhale gently.",
-                "Keep the pace easy and relaxed."
-            ]
-        case .stretch:
-            return [
-                "Roll your shoulders back.",
-                "Stand tall and loosen your neck.",
-                "Let your wrists and hands reset."
-            ]
-        case .blink:
-            return [
-                "Blink slowly and naturally.",
-                "Soften your gaze.",
-                "Look away from the screen for a few seconds."
-            ]
-        case .hydration:
-            return [
-                "Take a sip of water.",
-                "Relax your shoulders.",
-                "Reset before the next work block."
-            ]
+        if let custom = customPrompts, !custom.isEmpty {
+            return custom
         }
+        return style.defaultPrompts
     }
 }

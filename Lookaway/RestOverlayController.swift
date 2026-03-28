@@ -10,6 +10,7 @@ final class RestOverlayController {
         style: BreakScheduler.BreakStyle,
         dimAmount: Double,
         showDisplayLabel: Bool,
+        customPrompts: [String]?,
         onDismiss: @escaping () -> Void,
         onSkip: @escaping () -> Void
     ) {
@@ -38,6 +39,7 @@ final class RestOverlayController {
                 style: style,
                 dimAmount: dimAmount,
                 displayName: displayName,
+                customPrompts: customPrompts,
                 onDismiss: onDismiss,
                 onSkip: onSkip
             )
