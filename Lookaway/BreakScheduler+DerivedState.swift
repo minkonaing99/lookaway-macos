@@ -19,103 +19,106 @@ extension BreakScheduler {
     }
 
     func refreshDerivedState(now: Date) {
+        refreshDerivedState(now: now, blocker: runtimeBlocker(for: now))
+    }
+
+    func refreshDerivedState(now: Date, blocker: RuntimeBlocker) {
         refreshCalendarStatus(now: now)
-        let blocker = runtimeBlocker(for: now)
         updateCountdownLabels(now: now, blocker: blocker)
         updateStatusTexts(now: now, blocker: blocker)
-        nextBreakClockText = Self.clockFormatter.string(from: nextBreakDate)
+        let newClockText = Self.clockFormatter.string(from: nextBreakDate)
+        if nextBreakClockText != newClockText { nextBreakClockText = newClockText }
     }
 
     func updateCountdownLabels(now: Date, blocker: RuntimeBlocker) {
+        let remaining: String
+        let countdown: String
+        let status: String
+
         if isShowingBreak {
-            timeRemainingMinutesText = "Break now"
-            menuBarCountdownText = "Break"
-            menuBarStatusText = "Break"
-            return
+            remaining = "Break now"; countdown = "Break"; status = "Break"
+        } else {
+            switch blocker {
+            case .paused:
+                remaining = "Paused"; countdown = "Paused"; status = "Paused"
+            case .outsideSchedule:
+                remaining = "Off schedule"; countdown = "Off"; status = "Off"
+            case .focus:
+                remaining = "Focus block"; countdown = "Focus"; status = "Focus"
+            case .meeting:
+                remaining = "Meeting active"; countdown = "Meeting"; status = "Meeting"
+            case .none:
+                let secs = max(0, nextBreakDate.timeIntervalSince(now))
+                let minutes = max(0, Int(ceil(secs / 60.0)))
+                remaining = minutes == 1 ? "1 min" : "\(minutes) min"
+                countdown = "\(minutes)m"
+                status = secs <= 60 ? "Soon" : "Working"
+            }
         }
 
-        switch blocker {
-        case .paused:
-            timeRemainingMinutesText = "Paused"
-            menuBarCountdownText = "Paused"
-            menuBarStatusText = "Paused"
-            return
-        case .outsideSchedule:
-            timeRemainingMinutesText = "Off schedule"
-            menuBarCountdownText = "Off"
-            menuBarStatusText = "Off"
-            return
-        case .focus:
-            timeRemainingMinutesText = "Focus block"
-            menuBarCountdownText = "Focus"
-            menuBarStatusText = "Focus"
-            return
-        case .meeting:
-            timeRemainingMinutesText = "Meeting active"
-            menuBarCountdownText = "Meeting"
-            menuBarStatusText = "Meeting"
-            return
-        case .none:
-            break
-        }
-
-        let remaining = max(0, nextBreakDate.timeIntervalSince(now))
-        let minutes = max(0, Int(ceil(remaining / 60.0)))
-        timeRemainingMinutesText = minutes == 1 ? "1 min" : "\(minutes) min"
-        menuBarCountdownText = "\(minutes)m"
-        menuBarStatusText = remaining <= 60 ? "Soon" : "Working"
+        if timeRemainingMinutesText != remaining { timeRemainingMinutesText = remaining }
+        if menuBarCountdownText != countdown { menuBarCountdownText = countdown }
+        if menuBarStatusText != status { menuBarStatusText = status }
     }
 
     func updateStatusTexts(now: Date, blocker: RuntimeBlocker) {
+        let title: String
+        let explanation: String
+        let blockerText: String
+
         switch blocker {
         case .paused:
-            currentStateTitle = "Paused"
-            currentStateExplanation = "LookAway is paused because the Mac is locked, sleeping, or you paused reminders manually."
-            currentBlockerText = "Paused"
+            title = "Paused"
+            explanation = "LookAway is paused because the Mac is locked, sleeping, or you paused reminders manually."
+            blockerText = "Paused"
         case .outsideSchedule(let nextStart):
-            currentStateTitle = "Outside schedule"
+            title = "Outside schedule"
             if let nextStart {
-                currentStateExplanation = "Reminders resume at \(Self.dayTimeFormatter.string(from: nextStart))."
-                currentBlockerText = "Outside schedule until \(Self.dayTimeFormatter.string(from: nextStart))"
+                explanation = "Reminders resume at \(Self.dayTimeFormatter.string(from: nextStart))."
+                blockerText = "Outside schedule until \(Self.dayTimeFormatter.string(from: nextStart))"
             } else {
-                currentStateExplanation = "No active work hours are available with the current schedule."
-                currentBlockerText = "Outside schedule"
+                explanation = "No active work hours are available with the current schedule."
+                blockerText = "Outside schedule"
             }
         case .focus(let until):
-            currentStateTitle = "Focus block active"
+            title = "Focus block active"
             if let until {
-                currentStateExplanation = "LookAway is holding the next break until your focus block ends at \(Self.clockFormatter.string(from: until))."
-                currentBlockerText = "Focus block until \(Self.clockFormatter.string(from: until))"
+                explanation = "LookAway is holding the next break until your focus block ends at \(Self.clockFormatter.string(from: until))."
+                blockerText = "Focus block until \(Self.clockFormatter.string(from: until))"
             } else {
-                currentStateExplanation = "LookAway is holding the next break because focus mode is active."
-                currentBlockerText = "Focus block"
+                explanation = "LookAway is holding the next break because focus mode is active."
+                blockerText = "Focus block"
             }
-        case .meeting(let until, let title):
-            currentStateTitle = "In a calendar event"
-            let meetingLabel = title?.isEmpty == false ? title! : "Current meeting"
+        case .meeting(let until, let meetingTitle):
+            title = "In a calendar event"
+            let meetingLabel = meetingTitle?.isEmpty == false ? meetingTitle! : "Current meeting"
             if let until {
-                currentStateExplanation = "LookAway will wait until \(meetingLabel) ends at \(Self.clockFormatter.string(from: until))."
-                currentBlockerText = "Meeting until \(Self.clockFormatter.string(from: until))"
+                explanation = "LookAway will wait until \(meetingLabel) ends at \(Self.clockFormatter.string(from: until))."
+                blockerText = "Meeting until \(Self.clockFormatter.string(from: until))"
             } else {
-                currentStateExplanation = "LookAway is waiting for the current meeting to finish."
-                currentBlockerText = "Meeting active"
+                explanation = "LookAway is waiting for the current meeting to finish."
+                blockerText = "Meeting active"
             }
         case .none:
-            currentStateTitle = isInPreAlert ? "Break soon" : "Working"
+            title = isInPreAlert ? "Break soon" : "Working"
+            blockerText = "No blocker"
             if isInPreAlert {
                 switch preAlertPresentation {
                 case .pointerCountdown:
-                    currentStateExplanation = "Countdown is active near the pointer. Break starts at \(nextBreakClockText)."
+                    explanation = "Countdown is active near the pointer. Break starts at \(nextBreakClockText)."
                 case .centerBanner:
-                    currentStateExplanation = "A soft center-screen banner is active. Break starts at \(nextBreakClockText)."
+                    explanation = "A soft center-screen banner is active. Break starts at \(nextBreakClockText)."
                 case .notification:
-                    currentStateExplanation = "A system notification has been sent. Break starts at \(nextBreakClockText)."
+                    explanation = "A system notification has been sent. Break starts at \(nextBreakClockText)."
                 }
             } else {
-                currentStateExplanation = "Next coffee reset is scheduled for \(nextBreakClockText)."
+                explanation = "Next coffee reset is scheduled for \(nextBreakClockText)."
             }
-            currentBlockerText = "No blocker"
         }
+
+        if currentStateTitle != title { currentStateTitle = title }
+        if currentStateExplanation != explanation { currentStateExplanation = explanation }
+        if currentBlockerText != blockerText { currentBlockerText = blockerText }
     }
 
     var scheduleSummaryText: String {

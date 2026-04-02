@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import Foundation
 import IOKit.ps
 
@@ -9,27 +10,40 @@ extension BreakScheduler {
         let resign = center.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.stopTicker()
+                self.clearPreAlertUI()
+                self.webcamMonitor.stopMonitoring()
                 self.setAutoPause("session", active: self.pauseOnSystemIdle)
             }
         }
         let active = center.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.setAutoPause("session", active: false)
-                self?.lastBreakReasonText = "Session resumed"
-                self?.scheduleNextBreak(from: .now)
+                guard let self else { return }
+                self.startTicker()
+                self.refreshWebcamMonitoring()
+                self.setAutoPause("session", active: false)
+                self.lastBreakReasonText = "Session resumed"
+                self.scheduleNextBreak(from: .now)
             }
         }
         let sleep = center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.stopTicker()
+                self.clearPreAlertUI()
+                self.webcamMonitor.stopMonitoring()
                 self.setAutoPause("sleep", active: self.pauseOnSystemIdle)
             }
         }
         let wake = center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.setAutoPause("sleep", active: false)
-                self?.lastBreakReasonText = "Mac woke from sleep"
-                self?.scheduleNextBreak(from: .now)
+                guard let self else { return }
+                self.meetingCacheTimestamp = .distantPast
+                self.startTicker()
+                self.refreshWebcamMonitoring()
+                self.setAutoPause("sleep", active: false)
+                self.lastBreakReasonText = "Mac woke from sleep"
+                self.scheduleNextBreak(from: .now)
             }
         }
         let appActivated = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
@@ -82,7 +96,7 @@ extension BreakScheduler {
     }
 
     func refreshContextIfNeeded(_ now: Date) {
-        guard now.timeIntervalSince(lastContextRefresh) >= 15 else { return }
+        guard now.timeIntervalSince(lastContextRefresh) >= 120 else { return }
         refreshContextSnapshot()
     }
 
@@ -139,6 +153,24 @@ extension BreakScheduler {
         let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
         let shouldPause = !bundleID.isEmpty && pauseAppBundleIDs.contains(bundleID)
         setAutoPause("frontmostApp", active: shouldPause)
+    }
+
+    // MARK: - Idle Detection
+
+    func checkIdleState() {
+        guard pauseWhenIdle else {
+            setAutoPause("idle", active: false)
+            return
+        }
+        let idleSeconds = secondsSinceLastUserInput()
+        setAutoPause("idle", active: idleSeconds >= 300)
+    }
+
+    private func secondsSinceLastUserInput() -> TimeInterval {
+        let mouse = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved)
+        let click = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .leftMouseDown)
+        let key   = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
+        return min(mouse, min(click, key))
     }
 
     // MARK: - Webcam Monitoring

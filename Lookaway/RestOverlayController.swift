@@ -49,11 +49,18 @@ final class RestOverlayController {
             windows.append(window)
         }
 
-        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        }
     }
 
     func hideOverlay() {
-        windows.forEach { $0.orderOut(nil) }
+        for window in windows {
+            window.contentView = nil  // releases NSHostingView + SwiftUI tree immediately
+            window.orderOut(nil)
+        }
         windows.removeAll()
     }
 }

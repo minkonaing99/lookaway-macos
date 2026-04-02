@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 struct RestOverlayView: View {
@@ -15,6 +14,7 @@ struct RestOverlayView: View {
     @State private var didAutoDismiss = false
     @State private var gradientShifted = false
     @State private var glowExpanded = false
+    @State private var countdownTask: Task<Void, Never>?
 
     init(
         restDuration: Int,
@@ -95,14 +95,23 @@ struct RestOverlayView: View {
             withAnimation(.easeInOut(duration: 6).repeatForever(autoreverses: true)) {
                 glowExpanded = true
             }
-        }
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            if secondsRemaining > 0 {
-                secondsRemaining -= 1
-            } else if !didAutoDismiss {
-                didAutoDismiss = true
-                onDismiss()
+            countdownTask = Task { @MainActor in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    guard !Task.isCancelled else { break }
+                    if secondsRemaining > 0 {
+                        secondsRemaining -= 1
+                    } else if !didAutoDismiss {
+                        didAutoDismiss = true
+                        onDismiss()
+                        break
+                    }
+                }
             }
+        }
+        .onDisappear {
+            countdownTask?.cancel()
+            countdownTask = nil
         }
     }
 

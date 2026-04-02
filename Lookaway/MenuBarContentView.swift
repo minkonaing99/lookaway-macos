@@ -412,6 +412,7 @@ struct PreferencesContentView: View {
             settingsCard(title: "App Behavior", subtitle: "Startup and system-level handling.") {
                 Toggle("Launch at login", isOn: $scheduler.launchAtLogin)
                 Toggle("Pause on lock/sleep", isOn: $scheduler.pauseOnSystemIdle)
+                Toggle("Pause when idle (5 min)", isOn: $scheduler.pauseWhenIdle)
             }
 
             settingsCard(title: "Overlay Feel", subtitle: "Keep the break visible without making it heavy.") {

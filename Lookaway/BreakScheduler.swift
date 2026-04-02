@@ -151,6 +151,17 @@ final class BreakScheduler: ObservableObject {
         didSet { persist(pauseOnSystemIdle, key: Keys.pauseOnSystemIdle) }
     }
 
+    @Published var pauseWhenIdle: Bool {
+        didSet {
+            persist(pauseWhenIdle, key: Keys.pauseWhenIdle)
+            if !pauseWhenIdle {
+                setAutoPause("idle", active: false)
+            } else {
+                checkIdleState()
+            }
+        }
+    }
+
     @Published var delayDuringMeetings: Bool {
         didSet {
             persist(delayDuringMeetings, key: Keys.delayDuringMeetings)
@@ -264,6 +275,7 @@ final class BreakScheduler: ObservableObject {
     let webcamMonitor = WebcamActivityMonitor()
     let eventStore = EKEventStore()
     var ticker: Timer?
+    var tickerActive = false
     var isApplyingPreset = false
     var preAlertTriggeredThisCycle = false
     var isRunningBreakTest = false
@@ -322,6 +334,7 @@ final class BreakScheduler: ObservableObject {
         }
 
         pauseOnSystemIdle = defaults.object(forKey: Keys.pauseOnSystemIdle) as? Bool ?? true
+        pauseWhenIdle = defaults.object(forKey: Keys.pauseWhenIdle) as? Bool ?? true
         delayDuringMeetings = defaults.object(forKey: Keys.delayDuringMeetings) as? Bool ?? false
         onlyAcceptedCalendarEvents = defaults.object(forKey: Keys.onlyAcceptedCalendarEvents) as? Bool ?? true
         deviceAwareModeEnabled = defaults.object(forKey: Keys.deviceAwareModeEnabled) as? Bool ?? true

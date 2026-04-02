@@ -44,6 +44,8 @@ extension BreakScheduler {
         static let pauseAppBundleIDs = "lookaway.pauseAppBundleIDs"
         // Webcam detection
         static let pauseWhenCameraActive = "lookaway.pauseWhenCameraActive"
+        // Idle detection
+        static let pauseWhenIdle = "lookaway.pauseWhenIdle"
     }
 
     enum IntervalOption: Int, CaseIterable, Identifiable {

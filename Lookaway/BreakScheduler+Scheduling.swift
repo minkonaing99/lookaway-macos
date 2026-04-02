@@ -2,29 +2,60 @@ import Foundation
 
 extension BreakScheduler {
     func startTicker() {
-        ticker = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        guard !tickerActive else { return }
+        tickerActive = true
+        scheduleNextTick()
+    }
+
+    func stopTicker() {
+        tickerActive = false
+        ticker?.invalidate()
+        ticker = nil
+    }
+
+    private func scheduleNextTick() {
+        guard tickerActive else { return }
+        let interval = tickInterval()
+        let t = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.tick()
+                guard let self, self.tickerActive else { return }
+                self.ticker = nil
+                self.tick()
+                self.scheduleNextTick()
             }
         }
-        ticker?.tolerance = 0.2
-        if let ticker {
-            RunLoop.main.add(ticker, forMode: .common)
-        }
+        t.tolerance = max(0.2, interval * 0.1)
+        RunLoop.main.add(t, forMode: .common)
+        ticker = t
+    }
+
+    private func tickInterval() -> TimeInterval {
+        guard !isPaused, !isShowingBreak else { return 30 }
+        let remaining = nextBreakDate.timeIntervalSince(.now)
+        if remaining <= 35 { return 1 }
+        if remaining <= 120 { return 5 }
+        return 30
     }
 
     func tick() {
         let now = Date()
         refreshContextIfNeeded(now)
-        refreshDerivedState(now: now)
+        checkIdleState()
+
+        // When paused and not actively showing a break or running a test,
+        // there is nothing useful to compute each second.
+        guard !isPaused || isRunningBreakTest || isShowingBreak else { return }
 
         let bypassGuards = isRunningBreakTest || isShowingTestBreak
+
         guard !isShowingBreak else {
             clearPreAlertUI()
             return
         }
 
         let blocker = bypassGuards ? RuntimeBlocker.none : runtimeBlocker(for: now)
+        refreshDerivedState(now: now, blocker: blocker)
+
         if case .none = blocker {
         } else {
             clearPreAlertUI()

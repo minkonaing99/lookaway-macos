@@ -39,41 +39,48 @@ extension BreakScheduler {
 
     func refreshCalendarStatus(now: Date) {
         let status = EKEventStore.authorizationStatus(for: .event)
+        var newStatus = ""
+        var newMeeting = ""
+        var newDetail = ""
+
         switch status {
         case .fullAccess:
+            newStatus = "Connected"
             if let event = currentBlockingMeeting(at: now) {
-                calendarStatusText = "Connected"
-                currentMeetingText = "In meeting until \(Self.clockFormatter.string(from: event.endDate))"
+                newMeeting = "In meeting until \(Self.clockFormatter.string(from: event.endDate))"
                 let title = event.title?.isEmpty == false ? event.title! : "Current event"
-                calendarDetailText = "\(title) ends at \(Self.clockFormatter.string(from: event.endDate))."
+                newDetail = "\(title) ends at \(Self.clockFormatter.string(from: event.endDate))."
             } else {
-                calendarStatusText = "Connected"
-                currentMeetingText = "No active meeting"
-                calendarDetailText = "LookAway can delay breaks during active meetings."
+                newMeeting = "No active meeting"
+                newDetail = "LookAway can delay breaks during active meetings."
             }
         case .writeOnly:
-            calendarStatusText = "Write-only access"
-            currentMeetingText = "Meeting detection unavailable"
-            calendarDetailText = "Grant full access to let LookAway skip breaks during events."
+            newStatus = "Write-only access"
+            newMeeting = "Meeting detection unavailable"
+            newDetail = "Grant full access to let LookAway skip breaks during events."
         case .denied, .restricted:
-            calendarStatusText = "Access denied"
-            currentMeetingText = "Meeting detection unavailable"
-            calendarDetailText = "Enable access in System Settings > Privacy & Security > Calendars."
+            newStatus = "Access denied"
+            newMeeting = "Meeting detection unavailable"
+            newDetail = "Enable access in System Settings > Privacy & Security > Calendars."
         case .notDetermined:
-            calendarStatusText = "Calendar not connected"
-            currentMeetingText = "No active meeting"
-            calendarDetailText = "Request access to let LookAway avoid interrupting meetings."
+            newStatus = "Calendar not connected"
+            newMeeting = "No active meeting"
+            newDetail = "Request access to let LookAway avoid interrupting meetings."
         @unknown default:
-            calendarStatusText = "Unknown status"
-            currentMeetingText = "Meeting detection unavailable"
-            calendarDetailText = "Calendar authorization returned an unknown state."
+            newStatus = "Unknown status"
+            newMeeting = "Meeting detection unavailable"
+            newDetail = "Calendar authorization returned an unknown state."
         }
+
+        if calendarStatusText != newStatus { calendarStatusText = newStatus }
+        if currentMeetingText != newMeeting { currentMeetingText = newMeeting }
+        if calendarDetailText != newDetail { calendarDetailText = newDetail }
     }
 
     func currentBlockingMeeting(at date: Date) -> EKEvent? {
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return nil }
 
-        if date.timeIntervalSince(meetingCacheTimestamp) < 30 {
+        if date.timeIntervalSince(meetingCacheTimestamp) < 300 {
             return cachedMeetingEvent
         }
 

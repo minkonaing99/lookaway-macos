@@ -13,12 +13,16 @@ extension BreakScheduler {
         extendedStats = computeExtendedStats()
     }
 
+    private static let dayKeyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = .current
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     static func dayKey(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = .current
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        dayKeyFormatter.string(from: date)
     }
 
     static func loadStats() -> [String: DailyCounters] {
