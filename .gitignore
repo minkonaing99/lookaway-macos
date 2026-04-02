@@ -1,0 +1,22 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Build output
+build/
+*.o
+*.d
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Claude
+CLAUDE.md
