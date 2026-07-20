@@ -6,14 +6,19 @@ struct RestOverlayView: View {
     let dimAmount: Double
     let displayName: String?
     let customPrompts: [String]?
+    let backgroundStyle: BreakScheduler.OverlayBackgroundStyle
+    let theme: BreakScheduler.OverlayTheme
+    let wallpaper: NSImage?
+    let reduceMotion: Bool
     let onDismiss: () -> Void
     let onSkip: () -> Void
+
+    private let palette: OverlayPalette
 
     @State private var secondsRemaining: Int
     @State private var appeared = false
     @State private var didAutoDismiss = false
     @State private var gradientShifted = false
-    @State private var glowExpanded = false
     @State private var countdownTask: Task<Void, Never>?
 
     init(
@@ -22,6 +27,10 @@ struct RestOverlayView: View {
         dimAmount: Double,
         displayName: String?,
         customPrompts: [String]?,
+        backgroundStyle: BreakScheduler.OverlayBackgroundStyle = .classic,
+        theme: BreakScheduler.OverlayTheme = .ocean,
+        wallpaper: NSImage? = nil,
+        reduceMotion: Bool = false,
         onDismiss: @escaping () -> Void,
         onSkip: @escaping () -> Void
     ) {
@@ -30,6 +39,11 @@ struct RestOverlayView: View {
         self.dimAmount = dimAmount
         self.displayName = displayName
         self.customPrompts = customPrompts
+        self.backgroundStyle = backgroundStyle
+        self.theme = theme
+        self.wallpaper = wallpaper
+        self.reduceMotion = reduceMotion
+        self.palette = theme.palette()
         self.onDismiss = onDismiss
         self.onSkip = onSkip
         _secondsRemaining = State(initialValue: restDuration)
@@ -58,6 +72,8 @@ struct RestOverlayView: View {
 
                     if style == .breathing {
                         BreathingGuideView()
+                    } else if style == .eyeExercise {
+                        EyeExerciseGuideView()
                     } else {
                         Text(rotatingPrompt)
                             .font(.title3.weight(.medium))
@@ -89,11 +105,11 @@ struct RestOverlayView: View {
         }
         .onAppear {
             appeared = true
-            withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
-                gradientShifted = true
-            }
-            withAnimation(.easeInOut(duration: 6).repeatForever(autoreverses: true)) {
-                glowExpanded = true
+            // Decorative animation only on mains power; static frame on battery.
+            if !reduceMotion {
+                withAnimation(.easeInOut(duration: 14).repeatForever(autoreverses: true)) {
+                    gradientShifted = true
+                }
             }
             countdownTask = Task { @MainActor in
                 while !Task.isCancelled {
@@ -115,41 +131,61 @@ struct RestOverlayView: View {
         }
     }
 
+    @ViewBuilder
     private var backgroundLayer: some View {
+        switch backgroundStyle {
+        case .classic:
+            classicBackground
+        case .aurora:
+            AuroraBackgroundView(palette: palette, reduceMotion: reduceMotion)
+        case .wallpaper:
+            if let wallpaper {
+                wallpaperBackground(wallpaper)
+            } else {
+                // No readable image → calm blue aurora, regardless of theme.
+                AuroraBackgroundView(palette: BreakScheduler.OverlayTheme.ocean.palette(), reduceMotion: reduceMotion)
+            }
+        }
+    }
+
+    private func wallpaperBackground(_ image: NSImage) -> some View {
+        GeometryReader { geo in
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: geo.size.width, height: geo.size.height)
+                .blur(radius: 24, opaque: true)
+                .overlay(Color.black.opacity(0.35))
+                .clipped()
+        }
+        .ignoresSafeArea()
+    }
+
+    // Gradient drift + wandering glow; static when reduceMotion. Radial
+    // falloff instead of blurred layers keeps frames cheap to composite.
+    private var classicBackground: some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.19, green: 0.29, blue: 0.53),
-                    Color(red: 0.08, green: 0.51, blue: 0.56),
-                    Color(red: 0.21, green: 0.39, blue: 0.64)
-                ],
+                colors: palette.gradient,
                 startPoint: gradientShifted ? .topTrailing : .topLeading,
                 endPoint: gradientShifted ? .bottomLeading : .bottomTrailing
             )
 
             RadialGradient(
-                colors: [Color(red: 0.99, green: 0.83, blue: 0.57).opacity(0.38), Color.clear],
-                center: gradientShifted ? .topLeading : .bottomTrailing,
-                startRadius: glowExpanded ? 120 : 72,
-                endRadius: glowExpanded ? 760 : 520
+                colors: [palette.glow.opacity(0.34), Color.clear],
+                center: gradientShifted ? UnitPoint(x: 0.2, y: 0.15) : UnitPoint(x: 0.85, y: 0.85),
+                startRadius: 60,
+                endRadius: gradientShifted ? 820 : 620
             )
             .blendMode(.screen)
-            .blur(radius: 18)
 
-            AngularGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.10),
-                    Color.cyan.opacity(0.12),
-                    Color.mint.opacity(0.11),
-                    Color.orange.opacity(0.08),
-                    Color.white.opacity(0.10)
-                ]),
-                center: .center,
-                angle: .degrees(gradientShifted ? 360 : 0)
+            RadialGradient(
+                colors: [Color.cyan.opacity(0.14), Color.clear],
+                center: gradientShifted ? UnitPoint(x: 0.75, y: 0.8) : UnitPoint(x: 0.3, y: 0.3),
+                startRadius: 40,
+                endRadius: 700
             )
             .blendMode(.plusLighter)
-            .opacity(0.42)
-            .blur(radius: 30)
         }
         .ignoresSafeArea()
     }
@@ -161,6 +197,7 @@ struct RestOverlayView: View {
         case .stretch: return "figure.cooldown"
         case .blink: return "eye"
         case .hydration: return "drop.fill"
+        case .eyeExercise: return "eye.circle"
         }
     }
 
@@ -171,6 +208,7 @@ struct RestOverlayView: View {
         case .stretch: return "Stretch Break"
         case .blink: return "Blink Reset"
         case .hydration: return "Hydration Break"
+        case .eyeExercise: return "Eye Exercise"
         }
     }
 

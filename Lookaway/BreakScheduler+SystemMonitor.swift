@@ -162,8 +162,12 @@ extension BreakScheduler {
             setAutoPause("idle", active: false)
             return
         }
-        let idleSeconds = secondsSinceLastUserInput()
+        let idleSeconds = currentIdleSeconds()
         setAutoPause("idle", active: idleSeconds >= 300)
+    }
+
+    func currentIdleSeconds() -> TimeInterval {
+        idleSecondsProvider?() ?? secondsSinceLastUserInput()
     }
 
     private func secondsSinceLastUserInput() -> TimeInterval {

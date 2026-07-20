@@ -1,6 +1,57 @@
+import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 extension BreakScheduler {
+    func chooseWallpaperImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose an image for the break background"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        // Copy the picked photo into our own sandbox container. Reading our own
+        // container needs no security-scoped bookmark (which was failing), and
+        // the photo survives moves/renames/deletes of the original.
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            let dest = try wallpaperImageDestinationURL(sourceExtension: url.pathExtension)
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.copyItem(at: url, to: dest)
+            wallpaperBookmark = try dest.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
+            settingsError = nil
+        } catch {
+            settingsError = "Could not save the selected image: \(error.localizedDescription)"
+        }
+    }
+
+    func clearWallpaperImage() {
+        if let dest = try? wallpaperImageDestinationURL(sourceExtension: "") {
+            let dir = dest.deletingLastPathComponent()
+            let matches = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+            for file in matches where file.lastPathComponent.hasPrefix("wallpaper.") {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+        wallpaperBookmark = nil
+    }
+
+    // Fixed slot inside our sandbox container's Application Support dir.
+    private func wallpaperImageDestinationURL(sourceExtension: String) throws -> URL {
+        let dir = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let ext = sourceExtension.isEmpty ? "img" : sourceExtension
+        return dir.appendingPathComponent("wallpaper").appendingPathExtension(ext)
+    }
+
     func toggleWeekday(_ day: Weekday) {
         if activeWeekdays.contains(day.rawValue) {
             activeWeekdays.remove(day.rawValue)

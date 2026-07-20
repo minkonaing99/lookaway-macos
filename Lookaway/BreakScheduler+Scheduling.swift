@@ -29,9 +29,9 @@ extension BreakScheduler {
         ticker = t
     }
 
-    private func tickInterval() -> TimeInterval {
+    func tickInterval(now: Date = .now) -> TimeInterval {
         guard !isPaused, !isShowingBreak else { return 30 }
-        let remaining = nextBreakDate.timeIntervalSince(.now)
+        let remaining = nextBreakDate.timeIntervalSince(now)
         if remaining <= 35 { return 1 }
         if remaining <= 120 { return 5 }
         return 30
@@ -41,6 +41,9 @@ extension BreakScheduler {
         let now = Date()
         refreshContextIfNeeded(now)
         checkIdleState()
+        if adaptiveIntervalsEnabled, !isPaused, !isShowingBreak {
+            recordActivitySample()
+        }
 
         // When paused and not actively showing a break or running a test,
         // there is nothing useful to compute each second.
@@ -84,6 +87,10 @@ extension BreakScheduler {
                 if isFirstPreAlertTick {
                     notificationManager.sendPreAlert(style: breakStyle, secondsRemaining: Int(ceil(remaining)))
                 }
+            case .screenDim:
+                pointerCountdownController.hide()
+                centerPreBreakBannerController.hide()
+                dimPreAlertController.show(secondsRemaining: remaining)
             }
         } else {
             clearPreAlertUI()
@@ -114,6 +121,10 @@ extension BreakScheduler {
             dimAmount: effectiveDimAmount,
             showDisplayLabel: showPerDisplayLabel,
             customPrompts: prompts,
+            backgroundStyle: overlayBackgroundStyle,
+            theme: overlayTheme,
+            wallpaperBookmark: wallpaperBookmark,
+            reduceMotion: shouldLowerIntensityForPower,
             onDismiss: { [weak self] in
                 Task { @MainActor [weak self] in
                     self?.dismissBreakCompleted()
@@ -128,7 +139,9 @@ extension BreakScheduler {
     }
 
     func scheduleNextBreak(from base: Date) {
-        nextBreakDate = base.addingTimeInterval(effectiveIntervalSeconds)
+        let interval = effectiveIntervalSeconds
+        currentCycleIntervalSeconds = interval
+        nextBreakDate = base.addingTimeInterval(interval)
         preAlertTriggeredThisCycle = false
         shownCenterBannerMilestones.removeAll()
         clearPreAlertUI()
@@ -139,6 +152,7 @@ extension BreakScheduler {
         isInPreAlert = false
         pointerCountdownController.hide()
         centerPreBreakBannerController.hide()
+        dimPreAlertController.hide()
         notificationManager.cancelPreAlert()
     }
 
@@ -204,7 +218,41 @@ extension BreakScheduler {
             seconds *= 1.25
         }
 
+        seconds *= adaptiveActivityMultiplier
+
         return max(60, seconds)
+    }
+
+    // MARK: - Adaptive intervals
+
+    func recordActivitySample() {
+        var samples = activitySamples
+        samples.append(currentIdleSeconds() < 60)
+        if samples.count > 40 {
+            samples.removeFirst(samples.count - 40)
+        }
+        activitySamples = samples
+    }
+
+    var adaptiveActivityMultiplier: Double {
+        guard adaptiveIntervalsEnabled, activitySamples.count >= 10 else { return 1.0 }
+        let activeCount = activitySamples.filter { $0 }.count
+        let ratio = Double(activeCount) / Double(activitySamples.count)
+        return Self.adaptiveMultiplier(activityRatio: ratio)
+    }
+
+    static func adaptiveMultiplier(activityRatio: Double) -> Double {
+        if activityRatio >= 0.8 { return 0.85 }
+        if activityRatio <= 0.3 { return 1.2 }
+        return 1.0
+    }
+
+    // MARK: - Menu bar progress
+
+    static func quantizedProgress(remaining: TimeInterval, interval: TimeInterval) -> Double {
+        guard interval > 0 else { return 0 }
+        let fraction = min(1, max(0, 1 - remaining / interval))
+        return (fraction * 12).rounded() / 12
     }
 
     var effectivePreAlertEnabled: Bool {

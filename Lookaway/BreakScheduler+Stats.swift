@@ -32,6 +32,14 @@ extension BreakScheduler {
     }
 
     func saveStats() {
+        // Day keys sort chronologically (yyyy-MM-dd); keep the newest 400
+        // days so the stats dictionary cannot grow unbounded over years.
+        if dayStats.count > 400 {
+            dayStats = Dictionary(
+                uniqueKeysWithValues: dayStats.sorted { $0.key > $1.key }.prefix(400).map { ($0.key, $0.value) }
+            )
+        }
+
         let encoder = JSONEncoder()
         guard let data = try? encoder.encode(dayStats) else { return }
         UserDefaults.standard.set(data, forKey: Keys.dayStats)

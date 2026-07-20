@@ -42,7 +42,19 @@ struct LookawayApp: App {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .lineLimit(1)
             }
+        case .iconRing:
+            if showsProgressRing {
+                Image(nsImage: MenuBarRingIcon.image(fraction: scheduler.menuBarProgressFraction))
+            } else {
+                Image(systemName: symbol)
+                    .symbolRenderingMode(.hierarchical)
+            }
         }
+    }
+
+    private var showsProgressRing: Bool {
+        guard !scheduler.showBreakCompletionBadge else { return false }
+        return scheduler.currentStateTitle == "Working" || scheduler.currentStateTitle == "Break soon"
     }
 
     private var menuBarSymbolName: String {

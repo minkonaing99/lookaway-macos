@@ -64,6 +64,7 @@ struct MenuBarContentView: View {
         case .pointerCountdown: return "Break soon near pointer"
         case .centerBanner: return "Break soon on screen"
         case .notification: return "Break soon — notification sent"
+        case .screenDim: return "Break soon — screen dimming"
         }
     }
 
@@ -321,6 +322,16 @@ struct PreferencesContentView: View {
                     .pickerStyle(.menu)
                     .controlSize(.large)
                 }
+
+                Toggle("Adaptive interval (adjust to your activity level)", isOn: $scheduler.adaptiveIntervalsEnabled)
+                    .toggleStyle(.switch)
+
+                if scheduler.adaptiveIntervalsEnabled {
+                    statusStrip(
+                        title: "Adaptive timing is on",
+                        detail: "LookAway samples keyboard and mouse activity. Heavy screen use brings the next break up to 15% sooner; light use pushes it up to 20% later."
+                    )
+                }
             }
 
             settingsCard(title: "Custom Break Prompts", subtitle: "Override the default overlay text per break style. Leave empty to use built-in prompts.") {
@@ -416,6 +427,51 @@ struct PreferencesContentView: View {
             }
 
             settingsCard(title: "Overlay Feel", subtitle: "Keep the break visible without making it heavy.") {
+                pickerColumn(title: "Background") {
+                    Picker("Background", selection: $scheduler.overlayBackgroundStyle) {
+                        ForEach(BreakScheduler.OverlayBackgroundStyle.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
+
+                pickerColumn(title: "Color theme") {
+                    Picker("Color theme", selection: $scheduler.overlayTheme) {
+                        ForEach(BreakScheduler.OverlayTheme.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .controlSize(.large)
+                }
+                .disabled(scheduler.overlayBackgroundStyle == .wallpaper)
+
+                if scheduler.overlayBackgroundStyle == .wallpaper {
+                    HStack(spacing: 10) {
+                        Button(scheduler.wallpaperBookmark != nil ? "Change Photo…" : "Choose Photo…") {
+                            scheduler.chooseWallpaperImage()
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if scheduler.wallpaperBookmark != nil {
+                            Button("Remove Photo") {
+                                scheduler.clearWallpaperImage()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+
+                    statusStrip(
+                        title: scheduler.wallpaperBookmark != nil ? "Using your chosen photo" : "No photo chosen",
+                        detail: scheduler.wallpaperBookmark != nil
+                            ? "Your photo is blurred behind every break. Click \"Remove Photo\" to go back to the calm blue background."
+                            : "Pick a photo with \"Choose Photo…\" — it is blurred behind every break. Until then a calm blue background is shown."
+                    )
+                }
+
                 Toggle("Enable 30s pre-alert", isOn: $scheduler.enablePreAlert)
                 Picker("Pre-break cue", selection: $scheduler.preAlertPresentation) {
                     ForEach(BreakScheduler.PreAlertPresentation.allCases) { option in

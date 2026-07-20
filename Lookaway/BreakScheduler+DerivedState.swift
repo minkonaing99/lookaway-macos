@@ -59,6 +59,17 @@ extension BreakScheduler {
         if timeRemainingMinutesText != remaining { timeRemainingMinutesText = remaining }
         if menuBarCountdownText != countdown { menuBarCountdownText = countdown }
         if menuBarStatusText != status { menuBarStatusText = status }
+
+        let progress: Double
+        if isShowingBreak {
+            progress = 1
+        } else if case .none = blocker {
+            let secs = max(0, nextBreakDate.timeIntervalSince(now))
+            progress = Self.quantizedProgress(remaining: secs, interval: currentCycleIntervalSeconds)
+        } else {
+            progress = 0
+        }
+        if menuBarProgressFraction != progress { menuBarProgressFraction = progress }
     }
 
     func updateStatusTexts(now: Date, blocker: RuntimeBlocker) {
@@ -110,6 +121,8 @@ extension BreakScheduler {
                     explanation = "A soft center-screen banner is active. Break starts at \(nextBreakClockText)."
                 case .notification:
                     explanation = "A system notification has been sent. Break starts at \(nextBreakClockText)."
+                case .screenDim:
+                    explanation = "The screen is gently dimming. Break starts at \(nextBreakClockText)."
                 }
             } else {
                 explanation = "Next coffee reset is scheduled for \(nextBreakClockText)."

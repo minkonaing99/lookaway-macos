@@ -240,6 +240,33 @@ final class BreakScheduler: ObservableObject {
         }
     }
 
+    @Published var adaptiveIntervalsEnabled: Bool {
+        didSet {
+            persist(adaptiveIntervalsEnabled, key: Keys.adaptiveIntervalsEnabled)
+            refreshDerivedState(now: .now)
+        }
+    }
+
+    @Published var overlayBackgroundStyle: OverlayBackgroundStyle {
+        didSet { persist(overlayBackgroundStyle.rawValue, key: Keys.overlayBackgroundStyle) }
+    }
+
+    @Published var overlayTheme: OverlayTheme {
+        didSet { persist(overlayTheme.rawValue, key: Keys.overlayTheme) }
+    }
+
+    // Security-scoped bookmark for a user-chosen wallpaper image; nil means
+    // use the desktop picture (or the blue fallback if that is unreadable).
+    @Published var wallpaperBookmark: Data? {
+        didSet {
+            if let wallpaperBookmark {
+                UserDefaults.standard.set(wallpaperBookmark, forKey: Keys.wallpaperBookmark)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.wallpaperBookmark)
+            }
+        }
+    }
+
     // MARK: - Published read-only state
     // Note: these are set from extension files, so private(set) cannot be used here.
 
@@ -264,12 +291,14 @@ final class BreakScheduler: ObservableObject {
     @Published var currentBlockerText = "No blocker"
     @Published var currentMeetingText = "No active meeting"
     @Published var lastBreakReasonText = "App launched"
+    @Published var menuBarProgressFraction: Double = 0
 
     // MARK: - Private state
 
     let overlayController = RestOverlayController()
     let pointerCountdownController = PointerCountdownOverlayController()
     let centerPreBreakBannerController = CenterPreBreakBannerController()
+    let dimPreAlertController = DimPreAlertOverlayController()
     let breakCompletionBadgeController = BreakCompletionBadgeController()
     let notificationManager = NotificationManager()
     let webcamMonitor = WebcamActivityMonitor()
@@ -290,6 +319,11 @@ final class BreakScheduler: ObservableObject {
     var cachedMeetingEvent: EKEvent?
     var lastContextRefresh: Date = .distantPast
     let shortBlockThreshold: TimeInterval = 10 * 60
+    var activitySamples: [Bool] = []
+    var idleSecondsProvider: (() -> TimeInterval)?
+    // Interval captured when the cycle was scheduled, so the menu bar ring
+    // denominator stays fixed even if the adaptive multiplier shifts mid-cycle.
+    var currentCycleIntervalSeconds: TimeInterval = 0
 
     // MARK: - Init / deinit
 
@@ -362,9 +396,18 @@ final class BreakScheduler: ObservableObject {
         // Webcam detection
         pauseWhenCameraActive = defaults.object(forKey: Keys.pauseWhenCameraActive) as? Bool ?? false
 
+        // Adaptive intervals
+        adaptiveIntervalsEnabled = defaults.object(forKey: Keys.adaptiveIntervalsEnabled) as? Bool ?? false
+
+        // Overlay background
+        overlayBackgroundStyle = OverlayBackgroundStyle(rawValue: defaults.string(forKey: Keys.overlayBackgroundStyle) ?? "") ?? .aurora
+        overlayTheme = OverlayTheme(rawValue: defaults.string(forKey: Keys.overlayTheme) ?? "") ?? .auto
+        wallpaperBookmark = defaults.data(forKey: Keys.wallpaperBookmark)
+
         dayStats = Self.loadStats()
         extendedStats = .empty
         nextBreakDate = now.addingTimeInterval(loadedInterval.seconds)
+        currentCycleIntervalSeconds = loadedInterval.seconds
 
         // Persist migrated focus block windows if not previously saved
         if defaults.data(forKey: Keys.focusBlockWindows) == nil {

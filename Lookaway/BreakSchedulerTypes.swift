@@ -46,6 +46,12 @@ extension BreakScheduler {
         static let pauseWhenCameraActive = "lookaway.pauseWhenCameraActive"
         // Idle detection
         static let pauseWhenIdle = "lookaway.pauseWhenIdle"
+        // Adaptive intervals
+        static let adaptiveIntervalsEnabled = "lookaway.adaptiveIntervalsEnabled"
+        // Overlay background
+        static let overlayBackgroundStyle = "lookaway.overlayBackgroundStyle"
+        static let overlayTheme = "lookaway.overlayTheme"
+        static let wallpaperBookmark = "lookaway.wallpaperBookmark"
     }
 
     enum IntervalOption: Int, CaseIterable, Identifiable {
@@ -119,6 +125,7 @@ extension BreakScheduler {
         case stretch
         case blink
         case hydration
+        case eyeExercise
 
         var id: String { rawValue }
 
@@ -129,6 +136,7 @@ extension BreakScheduler {
             case .stretch: return "Stretch"
             case .blink: return "Blink"
             case .hydration: return "Hydration"
+            case .eyeExercise: return "Eye Exercise"
             }
         }
 
@@ -164,6 +172,12 @@ extension BreakScheduler {
                     "Relax your shoulders.",
                     "Reset before the next work block."
                 ]
+            case .eyeExercise:
+                return [
+                    "Follow the dot with your eyes only.",
+                    "Keep your head still and relaxed.",
+                    "Finish by focusing on something far away."
+                ]
             }
         }
     }
@@ -196,6 +210,7 @@ extension BreakScheduler {
         case iconOnly
         case iconAndMinutes
         case iconAndStatus
+        case iconRing
 
         var id: String { rawValue }
 
@@ -204,6 +219,55 @@ extension BreakScheduler {
             case .iconOnly: return "Icon only"
             case .iconAndMinutes: return "Icon + minutes"
             case .iconAndStatus: return "Icon + status"
+            case .iconRing: return "Progress ring"
+            }
+        }
+    }
+
+    enum OverlayBackgroundStyle: String, CaseIterable, Identifiable {
+        case classic
+        case aurora
+        case wallpaper
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .classic: return "Classic gradient"
+            case .aurora: return "Aurora"
+            case .wallpaper: return "Blurred photo"
+            }
+        }
+    }
+
+    enum OverlayTheme: String, CaseIterable, Identifiable {
+        case auto
+        case ocean
+        case sunset
+        case forest
+        case midnight
+        case lavender
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .auto: return "Auto (time of day)"
+            case .ocean: return "Ocean"
+            case .sunset: return "Sunset"
+            case .forest: return "Forest"
+            case .midnight: return "Midnight"
+            case .lavender: return "Lavender"
+            }
+        }
+
+        static func resolvedTheme(for theme: OverlayTheme, hour: Int) -> OverlayTheme {
+            guard theme == .auto else { return theme }
+            switch hour {
+            case 5..<11: return .forest
+            case 11..<17: return .ocean
+            case 17..<21: return .sunset
+            default: return .midnight
             }
         }
     }
@@ -212,6 +276,7 @@ extension BreakScheduler {
         case pointerCountdown
         case centerBanner
         case notification
+        case screenDim
 
         var id: String { rawValue }
 
@@ -220,6 +285,7 @@ extension BreakScheduler {
             case .pointerCountdown: return "Countdown beside pointer"
             case .centerBanner: return "Center-screen banner"
             case .notification: return "System notification"
+            case .screenDim: return "Gradual screen dim"
             }
         }
     }
