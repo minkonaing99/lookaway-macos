@@ -34,7 +34,7 @@ final class MediaPlaybackController {
             await previous?.value
             guard breakActive, let current = await snapshot(), current.isPlaying else { return }
             guard breakActive, await send(.pause) else { return }
-            pausedSnapshot = await snapshot() ?? current
+            pausedSnapshot = current
         }
     }
 
@@ -48,9 +48,9 @@ final class MediaPlaybackController {
             guard let pausedSnapshot else { return }
             let current = await snapshot()
             guard !breakActive else { return }
-            guard let current,
-                  current.id == pausedSnapshot.id,
-                  !current.isPlaying else {
+            let playerID = pausedSnapshot.id.split(separator: "|", maxSplits: 1).first.map { "\($0)|" }
+            guard let current, !current.isPlaying,
+                  (current.id == pausedSnapshot.id || current.id == playerID) else {
                 self.pausedSnapshot = nil
                 return
             }

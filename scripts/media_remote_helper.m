@@ -28,12 +28,12 @@ static NSDictionary *currentMedia(void) {
     getInfo(queue, ^(NSDictionary *value) { info = value; dispatch_semaphore_signal(semaphore); });
     if (!waitForReply(semaphore)) return nil;
     NSString *title = info[*titleKey];
-    if (![title isKindOfClass:NSString.class] || title.length == 0) return nil;
+    if (![title isKindOfClass:NSString.class]) title = nil;
 
     __block bool playing = false;
     getPlaying(queue, ^(bool value) { playing = value; dispatch_semaphore_signal(semaphore); });
     if (!waitForReply(semaphore)) return nil;
-    return @{ @"id": [NSString stringWithFormat:@"%d|%@", pid, title], @"playing": @(playing) };
+    return @{ @"id": [NSString stringWithFormat:@"%d|%@", pid, title ?: @""], @"playing": @(playing) };
 }
 
 __attribute__((constructor)) static void runMediaCommand(void) {

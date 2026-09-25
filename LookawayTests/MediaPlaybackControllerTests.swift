@@ -24,6 +24,64 @@ struct MediaPlaybackControllerTests {
         #expect(commands == [.pause, .play])
     }
 
+    @Test func resumesWhenBrowserTitleDisappearsAfterPause() async {
+        var current: MediaPlaybackController.Snapshot? = .init(id: "browser|video", isPlaying: true)
+        var commands: [MediaPlaybackController.Command] = []
+        let controller = MediaPlaybackController(
+            snapshot: { current },
+            send: { command in
+                commands.append(command)
+                current = .init(id: "browser|", isPlaying: command == .play)
+                return true
+            }
+        )
+
+        controller.beginBreak()
+        await controller.waitForPendingWork()
+        controller.endBreak()
+        await controller.waitForPendingWork()
+        #expect(commands == [.pause, .play])
+    }
+
+    @Test func missingNowPlayingSnapshotDoesNotStartUnknownMedia() async {
+        var current: MediaPlaybackController.Snapshot? = .init(id: "browser|video", isPlaying: true)
+        var commands: [MediaPlaybackController.Command] = []
+        let controller = MediaPlaybackController(
+            snapshot: { current },
+            send: { command in
+                commands.append(command)
+                current = nil
+                return true
+            }
+        )
+
+        controller.beginBreak()
+        await controller.waitForPendingWork()
+        controller.endBreak()
+        await controller.waitForPendingWork()
+        #expect(commands == [.pause])
+    }
+
+    @Test func resumeUsesIdentityCapturedBeforePause() async {
+        var current = MediaPlaybackController.Snapshot(id: "browser|video", isPlaying: true)
+        var commands: [MediaPlaybackController.Command] = []
+        let controller = MediaPlaybackController(
+            snapshot: { current },
+            send: { command in
+                commands.append(command)
+                current = .init(id: "browser|", isPlaying: command == .play)
+                return true
+            }
+        )
+
+        controller.beginBreak()
+        await controller.waitForPendingWork()
+        current = .init(id: "browser|video", isPlaying: false)
+        controller.endBreak()
+        await controller.waitForPendingWork()
+        #expect(commands == [.pause, .play])
+    }
+
     @Test func leavesPreviouslyPausedOrChangedMediaAlone() async {
         var current = MediaPlaybackController.Snapshot(id: "browser|video", isPlaying: false)
         var commands: [MediaPlaybackController.Command] = []
