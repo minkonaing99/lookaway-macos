@@ -111,6 +111,7 @@ extension BreakScheduler {
     func showBreak() {
         clearPreAlertUI()
         isShowingBreak = true
+        mediaPlaybackController.beginBreak()
         refreshDerivedState(now: .now)
         let prompts = customPrompts[breakStyle.rawValue]
         overlayController.showOverlay(

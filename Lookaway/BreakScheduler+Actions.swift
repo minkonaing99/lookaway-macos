@@ -87,6 +87,7 @@ extension BreakScheduler {
 
     func snooze(minutes: Int) {
         if isShowingBreak {
+            mediaPlaybackController.endBreak()
             overlayController.hideOverlay()
             isShowingBreak = false
             recordStat(\.snoozed)
@@ -101,6 +102,7 @@ extension BreakScheduler {
 
     func skipOnce() {
         if isShowingBreak {
+            mediaPlaybackController.endBreak()
             overlayController.hideOverlay()
             isShowingBreak = false
         }
@@ -120,6 +122,7 @@ extension BreakScheduler {
     func dismissBreakCompleted() {
         guard isShowingBreak else { return }
         isShowingBreak = false
+        mediaPlaybackController.endBreak()
         overlayController.hideOverlay()
 
         if isShowingTestBreak {

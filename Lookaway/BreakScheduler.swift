@@ -298,6 +298,7 @@ final class BreakScheduler: ObservableObject {
     // MARK: - Private state
 
     let overlayController = RestOverlayController()
+    let mediaPlaybackController = MediaPlaybackController()
     let centerPreBreakBannerController = CenterPreBreakBannerController()
     let breakCompletionBadgeController = BreakCompletionBadgeController()
     let notificationManager = NotificationManager()

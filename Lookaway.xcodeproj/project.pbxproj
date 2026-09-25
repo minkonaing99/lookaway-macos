@@ -80,6 +80,7 @@
 				D01D59192F57099300BCF2EE /* Sources */,
 				D01D591A2F57099300BCF2EE /* Frameworks */,
 				D01D591B2F57099300BCF2EE /* Resources */,
+				A1B2C3D4E5F6000000000001 /* Build media helper */,
 			);
 			buildRules = (
 			);
@@ -165,6 +166,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1B2C3D4E5F6000000000001 /* Build media helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/media_remote_helper.m",
+			);
+			name = "Build media helper";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/lookaway-media-helper.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nhelper=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/lookaway-media-helper.dylib\"\nmkdir -p \"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\nset --\nfor arch in $ARCHS; do set -- \"$@\" -arch \"$arch\"; done\n/usr/bin/clang \"$@\" -fobjc-arc -fblocks -dynamiclib -framework Foundation \"$SRCROOT/scripts/media_remote_helper.m\" -o \"$helper\"\nif [ \"$CODE_SIGNING_ALLOWED\" = YES ]; then /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --options runtime \"$helper\"; fi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		D01D59192F57099300BCF2EE /* Sources */ = {
