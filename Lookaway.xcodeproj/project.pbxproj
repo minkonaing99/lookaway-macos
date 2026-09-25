@@ -182,7 +182,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nhelper=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/lookaway-media-helper.dylib\"\nmkdir -p \"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\nset --\nfor arch in $ARCHS; do set -- \"$@\" -arch \"$arch\"; done\n/usr/bin/clang \"$@\" -fobjc-arc -fblocks -dynamiclib -framework Foundation \"$SRCROOT/scripts/media_remote_helper.m\" -o \"$helper\"\nif [ \"$CODE_SIGNING_ALLOWED\" = YES ]; then /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --options runtime \"$helper\"; fi\n";
+			shellScript = "set -e\nhelper=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/lookaway-media-helper.dylib\"\nstaging=$(mktemp -d)\ntrap 'rm -rf \"$staging\"' EXIT\nmkdir -p \"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\nset --\nfor arch in $ARCHS; do set -- \"$@\" -arch \"$arch\"; done\n/usr/bin/clang \"$@\" -fobjc-arc -fblocks -dynamiclib -framework Foundation \"$SRCROOT/scripts/media_remote_helper.m\" -o \"$staging/lookaway-media-helper.dylib\"\nif [ \"$CODE_SIGNING_ALLOWED\" = YES ]; then /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --options runtime \"$staging/lookaway-media-helper.dylib\"; fi\ncp \"$staging/lookaway-media-helper.dylib\" \"$helper\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
