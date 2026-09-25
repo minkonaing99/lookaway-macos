@@ -2,6 +2,10 @@ import AppKit
 import ImageIO
 import SwiftUI
 
+final class RestOverlayWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+}
+
 @MainActor
 final class RestOverlayController {
     private var windows: [NSWindow] = []
@@ -22,8 +26,9 @@ final class RestOverlayController {
         hideOverlay()
 
         let screens = NSScreen.screens
+        let deadline = Date.now.addingTimeInterval(TimeInterval(restDuration))
         for screen in screens {
-            let window = NSWindow(
+            let window = RestOverlayWindow(
                 contentRect: screen.frame,
                 styleMask: .borderless,
                 backing: .buffered,
@@ -44,6 +49,7 @@ final class RestOverlayController {
                 : nil
             let view = RestOverlayView(
                 restDuration: restDuration,
+                deadline: deadline,
                 style: style,
                 dimAmount: dimAmount,
                 displayName: displayName,
@@ -57,9 +63,11 @@ final class RestOverlayController {
             )
 
             window.contentView = NSHostingView(rootView: view)
-            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
             windows.append(window)
         }
+
+        (windows.first { $0.screen == NSScreen.main } ?? windows.first)?.makeKey()
 
         if #available(macOS 14.0, *) {
             NSApp.activate()

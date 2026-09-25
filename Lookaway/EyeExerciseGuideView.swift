@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EyeExerciseGuideView: View {
+    var reduceMotion = false
     private enum Phase: CaseIterable {
         case left, right, up, down, far
 
@@ -50,17 +51,17 @@ struct EyeExerciseGuideView: View {
                     )
                     .frame(width: 26, height: 26)
                     .shadow(color: .cyan.opacity(0.6), radius: 10)
-                    .offset(dotOffset)
+                    .offset(reduceMotion ? .zero : dotOffset)
                     .opacity(phase == .far ? 0.35 : 1)
-                    .animation(.easeInOut(duration: 1.0), value: dotOffset)
-                    .animation(.easeInOut(duration: 0.6), value: phase == .far)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 1.0), value: dotOffset)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: phase == .far)
             }
             .frame(width: 300, height: 140)
 
             Text(phase.label)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.88))
-                .animation(.easeInOut(duration: 0.25), value: phase.label)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: phase.label)
         }
         .onAppear {
             cycleTask = Task { @MainActor in

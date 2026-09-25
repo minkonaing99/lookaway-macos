@@ -68,16 +68,18 @@ final class PointerCountdownOverlayController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.animationBehavior = .utilityWindow
 
-        let container = NSView(frame: panel.contentRect(forFrameRect: panel.frame))
+        let container = NSVisualEffectView(frame: panel.contentRect(forFrameRect: panel.frame))
+        container.material = .menu
+        container.blendingMode = .behindWindow
+        container.state = .active
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
-        container.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.58).cgColor
-        container.layer?.borderWidth = 1
-        container.layer?.borderColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        container.layer?.cornerCurve = .continuous
+        container.layer?.masksToBounds = true
 
         let textField = NSTextField(labelWithString: "")
         textField.font = NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
-        textField.textColor = .white
+        textField.textColor = .labelColor
         textField.alignment = .center
 
         container.addSubview(textField)

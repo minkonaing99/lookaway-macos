@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct RestOverlayView: View {
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let restDuration: Int
+    let deadline: Date
     let style: BreakScheduler.BreakStyle
     let dimAmount: Double
     let displayName: String?
@@ -23,6 +26,7 @@ struct RestOverlayView: View {
 
     init(
         restDuration: Int,
+        deadline: Date,
         style: BreakScheduler.BreakStyle,
         dimAmount: Double,
         displayName: String?,
@@ -35,6 +39,7 @@ struct RestOverlayView: View {
         onSkip: @escaping () -> Void
     ) {
         self.restDuration = restDuration
+        self.deadline = deadline
         self.style = style
         self.dimAmount = dimAmount
         self.displayName = displayName
@@ -51,10 +56,20 @@ struct RestOverlayView: View {
 
     var body: some View {
         ZStack {
-            backgroundLayer
+            Color.black.ignoresSafeArea()
+            GeometryReader { geometry in
+                backgroundLayer
+                    .id(motionReduced)
+                    .frame(width: geometry.size.width + 256, height: geometry.size.height + 256)
+                    .drawingGroup(opaque: false, colorMode: .extendedLinear)
+                    .blur(radius: reduceTransparency ? 0 : 32)
+                    .offset(x: -128, y: -128)
+            }
+            .clipped()
+            .ignoresSafeArea()
             Color.black.opacity(max(0.12, dimAmount * 0.55)).ignoresSafeArea()
 
-            VStack(spacing: 18) {
+            VStack(spacing: 24) {
                 if let displayName {
                     Text(displayName)
                         .font(.caption.weight(.medium))
@@ -62,20 +77,21 @@ struct RestOverlayView: View {
                 }
 
                 Image(systemName: styleIcon)
-                    .font(.system(size: 44, weight: .regular))
+                    .font(.system(size: 28, weight: .regular))
                     .foregroundStyle(.white.opacity(0.94))
+                    .accessibilityHidden(true)
 
                 VStack(spacing: 8) {
                     Text(styleTitle)
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .font(.system(size: 30, weight: .medium))
                         .foregroundStyle(.white)
 
                     if style == .breathing {
-                        BreathingGuideView()
+                        BreathingGuideView(reduceMotion: motionReduced)
                     } else if style == .eyeExercise {
-                        EyeExerciseGuideView()
+                        EyeExerciseGuideView(reduceMotion: motionReduced)
                     } else {
-                        Text(rotatingPrompt)
+                        Text(promptOptions.first ?? "Relax for a moment.")
                             .font(.title3.weight(.medium))
                             .foregroundStyle(.white.opacity(0.9))
                             .frame(maxWidth: 520)
@@ -83,45 +99,44 @@ struct RestOverlayView: View {
                 }
 
                 Text(secondsRemaining > 0 ? "\(secondsRemaining)s" : "Done")
-                    .font(.system(size: 72, weight: .bold, design: .rounded))
+                    .font(.system(size: 52, weight: .light))
                     .foregroundStyle(.white)
                     .monospacedDigit()
+                    .accessibilityLabel("\(secondsRemaining) seconds remaining")
 
                 Button("Skip") {
                     onSkip()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .controlSize(.large)
-                .tint(.gray.opacity(0.36))
-                .foregroundStyle(.white.opacity(0.78))
-                .frame(minWidth: 210)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityHint("End this break early")
             }
             .multilineTextAlignment(.center)
             .padding(.horizontal, 32)
             .padding(.vertical, 36)
-            .scaleEffect(appeared ? 1 : 0.96)
             .opacity(appeared ? 1 : 0)
-            .animation(.easeOut(duration: 0.35), value: appeared)
+            .animation(motionReduced ? nil : .easeOut(duration: 0.35), value: appeared)
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             appeared = true
             // Decorative animation only on mains power; static frame on battery.
-            if !reduceMotion {
-                withAnimation(.easeInOut(duration: 14).repeatForever(autoreverses: true)) {
+            if !motionReduced {
+                withAnimation(.easeInOut(duration: 30).repeatForever(autoreverses: true)) {
                     gradientShifted = true
                 }
             }
             countdownTask = Task { @MainActor in
                 while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    guard !Task.isCancelled else { break }
-                    if secondsRemaining > 0 {
-                        secondsRemaining -= 1
-                    } else if !didAutoDismiss {
+                    secondsRemaining = Self.remainingSeconds(until: deadline, now: .now)
+                    if secondsRemaining == 0 && !didAutoDismiss {
                         didAutoDismiss = true
                         onDismiss()
                         break
                     }
+                    let delay = min(1, max(0, deadline.timeIntervalSinceNow))
+                    try? await Task.sleep(for: .seconds(delay))
                 }
             }
         }
@@ -129,6 +144,19 @@ struct RestOverlayView: View {
             countdownTask?.cancel()
             countdownTask = nil
         }
+        .onChange(of: motionReduced) { _, reduced in
+            if reduced {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { gradientShifted = false }
+            }
+        }
+    }
+
+    private var motionReduced: Bool { reduceMotion || systemReduceMotion }
+
+    static func remainingSeconds(until deadline: Date, now: Date) -> Int {
+        max(0, Int(ceil(deadline.timeIntervalSince(now))))
     }
 
     @ViewBuilder
@@ -137,13 +165,14 @@ struct RestOverlayView: View {
         case .classic:
             classicBackground
         case .aurora:
-            AuroraBackgroundView(palette: palette, reduceMotion: reduceMotion)
+            AuroraBackgroundView(palette: palette, reduceMotion: motionReduced)
+                .saturation(0.75)
         case .wallpaper:
             if let wallpaper {
                 wallpaperBackground(wallpaper)
             } else {
                 // No readable image → calm blue aurora, regardless of theme.
-                AuroraBackgroundView(palette: BreakScheduler.OverlayTheme.ocean.palette(), reduceMotion: reduceMotion)
+                AuroraBackgroundView(palette: BreakScheduler.OverlayTheme.ocean.palette(), reduceMotion: motionReduced)
             }
         }
     }
@@ -154,7 +183,6 @@ struct RestOverlayView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: geo.size.width, height: geo.size.height)
-                .blur(radius: 24, opaque: true)
                 .overlay(Color.black.opacity(0.35))
                 .clipped()
         }
@@ -192,7 +220,7 @@ struct RestOverlayView: View {
 
     private var styleIcon: String {
         switch style {
-        case .eyes: return "cup.and.saucer.fill"
+        case .eyes: return "eye"
         case .breathing: return "wind"
         case .stretch: return "figure.cooldown"
         case .blink: return "eye"
@@ -203,20 +231,13 @@ struct RestOverlayView: View {
 
     private var styleTitle: String {
         switch style {
-        case .eyes: return "Coffee Reset"
+        case .eyes: return "Rest your eyes"
         case .breathing: return "Breathing Break"
         case .stretch: return "Stretch Break"
         case .blink: return "Blink Reset"
         case .hydration: return "Hydration Break"
         case .eyeExercise: return "Eye Exercise"
         }
-    }
-
-    private var rotatingPrompt: String {
-        let prompts = promptOptions
-        guard !prompts.isEmpty else { return "Relax for a moment." }
-        let index = max(0, min(prompts.count - 1, (restDuration - max(secondsRemaining, 1)) / 4))
-        return prompts[index]
     }
 
     private var promptOptions: [String] {

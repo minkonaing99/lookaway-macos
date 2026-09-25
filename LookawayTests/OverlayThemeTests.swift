@@ -2,6 +2,17 @@ import Testing
 import Foundation
 @testable import Lookaway
 
+@Suite("overlay countdown")
+struct OverlayCountdownTests {
+    @Test func deadlineControlsRemainingTime() {
+        let deadline = Date(timeIntervalSince1970: 100)
+        #expect(RestOverlayView.remainingSeconds(until: deadline, now: deadline.addingTimeInterval(-20)) == 20)
+        #expect(RestOverlayView.remainingSeconds(until: deadline, now: deadline.addingTimeInterval(-0.1)) == 1)
+        #expect(RestOverlayView.remainingSeconds(until: deadline, now: deadline) == 0)
+        #expect(RestOverlayView.remainingSeconds(until: deadline, now: deadline.addingTimeInterval(3)) == 0)
+    }
+}
+
 @Suite("overlay theme resolution")
 struct OverlayThemeResolutionTests {
     @Test func autoMorningIsForest() {

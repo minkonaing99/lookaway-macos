@@ -37,7 +37,7 @@ struct StatsDashboardView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(.system(size: 30, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(unit)
@@ -47,10 +47,6 @@ struct StatsDashboardView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
@@ -105,12 +101,7 @@ struct StatsDashboardView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.92))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
+        .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 12, y: 6)
     }
 }

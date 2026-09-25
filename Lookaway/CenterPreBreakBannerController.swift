@@ -56,30 +56,24 @@ final class CenterPreBreakBannerController {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.backgroundColor = .clear
         window.isOpaque = false
-        window.hasShadow = false
+        window.hasShadow = true
         window.ignoresMouseEvents = true
 
         let effectView = NSVisualEffectView(frame: window.contentView?.bounds ?? .zero)
         effectView.translatesAutoresizingMaskIntoConstraints = false
         effectView.material = .menu
-        effectView.blendingMode = .withinWindow
+        effectView.blendingMode = .behindWindow
         effectView.state = .active
         effectView.wantsLayer = true
         effectView.layer?.cornerRadius = 30
         effectView.layer?.cornerCurve = .continuous
-        effectView.layer?.borderWidth = 1
-        effectView.layer?.borderColor = NSColor.white.withAlphaComponent(0.05).cgColor
-        effectView.layer?.backgroundColor = NSColor(calibratedWhite: 0.14, alpha: 0.86).cgColor
-        effectView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.28).cgColor
-        effectView.layer?.shadowOpacity = 1
-        effectView.layer?.shadowRadius = 22
-        effectView.layer?.shadowOffset = CGSize(width: 0, height: -6)
+        effectView.layer?.masksToBounds = true
 
         let textField = NSTextField(labelWithString: "")
         textField.translatesAutoresizingMaskIntoConstraints = false
         textField.alignment = .center
         textField.font = .systemFont(ofSize: 20, weight: .semibold)
-        textField.textColor = NSColor.white.withAlphaComponent(0.97)
+        textField.textColor = .labelColor
         textField.lineBreakMode = .byWordWrapping
         textField.maximumNumberOfLines = 2
 

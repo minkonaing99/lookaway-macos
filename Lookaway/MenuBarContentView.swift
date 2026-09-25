@@ -17,23 +17,25 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.orange)
             }
 
-            HStack(spacing: 8) {
-                Button("Start Break") {
-                    scheduler.triggerBreakNow()
-                }
-
-                SettingsLink {
-                    Text("Preferences…")
-                }
+            Button {
+                scheduler.triggerBreakNow()
+            } label: {
+                Label("Start Break", systemImage: "cup.and.saucer")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
 
             HStack(spacing: 8) {
-                Button("Snooze 5m") { scheduler.snooze(minutes: 5) }
-                Button("Snooze 10m") { scheduler.snooze(minutes: 10) }
+                Menu("Snooze") {
+                    Button("5 minutes") { scheduler.snooze(minutes: 5) }
+                    Button("10 minutes") { scheduler.snooze(minutes: 10) }
+                }
                 Button("Skip Once") { scheduler.skipOnce() }
             }
 
             Toggle("Pause reminders", isOn: $scheduler.manualPauseEnabled)
+                .toggleStyle(.switch)
 
             if let settingsError = scheduler.settingsError {
                 Text(settingsError)
@@ -51,11 +53,15 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button("Quit LookAway") {
-                NSApplication.shared.terminate(nil)
+            HStack {
+                SettingsLink { Text("Settings...") }
+                Spacer()
+                Button("Quit LookAway") {
+                    NSApplication.shared.terminate(nil)
+                }
             }
         }
-        .padding(12)
+        .padding(20)
         .frame(width: 320)
     }
 
@@ -117,26 +123,6 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
         }
     }
 
-    var eyebrow: String {
-        switch self {
-        case .schedule: return "Work rhythm"
-        case .breaks: return "Reset design"
-        case .focus: return "Interruptions"
-        case .stats: return "Your data"
-        case .advanced: return "Diagnostics"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .schedule: return "Define when LookAway should be active and pick a default rhythm."
-        case .breaks: return "Tune the countdown, overlay feel, and the break experience itself."
-        case .focus: return "Control how meetings, focus blocks, and specific apps delay interruptions."
-        case .stats: return "Review your break history, streaks, and completion rate."
-        case .advanced: return "Adjust menu bar behavior, system adaptation, testing, and local data."
-        }
-    }
-
     var icon: String {
         switch self {
         case .schedule: return "calendar"
@@ -156,14 +142,14 @@ struct PreferencesContentView: View {
     private let cardColumns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     var body: some View {
-        HStack(spacing: 0) {
+        NavigationSplitView {
             sidebar
-            Divider()
+        } detail: {
             detailContent(for: selection ?? .schedule)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle((selection ?? .schedule).title)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .background(PreferencesWindowChromeConfigurator().frame(width: 0, height: 0))
+        .navigationSplitViewStyle(.balanced)
     }
 
     private var sidebar: some View {
@@ -172,85 +158,59 @@ struct PreferencesContentView: View {
                 .tag(section)
         }
         .listStyle(.sidebar)
-        .frame(width: 210)
-        .frame(maxHeight: .infinity)
-        .background(Color(nsColor: .underPageBackgroundColor))
+        .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
+        .safeAreaInset(edge: .bottom) {
+            summaryCard
+        }
     }
 
     @ViewBuilder
     private func detailContent(for section: PreferencesSection) -> some View {
-        settingsScroll(section: section) {
-            switch section {
-            case .schedule:
-                schedulePage
-            case .breaks:
-                breaksPage
-            case .focus:
-                focusPage
-            case .stats:
-                statsPage
-            case .advanced:
-                advancedPage
+        if section == .stats {
+            ScrollView {
+                statsPage.padding(24)
+            }
+        } else {
+            settingsScroll(section: section) {
+                switch section {
+                case .schedule:
+                    schedulePage
+                case .breaks:
+                    breaksPage
+                case .focus:
+                    focusPage
+                case .stats:
+                    statsPage
+                case .advanced:
+                    advancedPage
+                }
             }
         }
     }
 
     private func settingsScroll<Content: View>(section: PreferencesSection, @ViewBuilder content: () -> Content) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                summaryCard
-                pageHeader(section)
-                content()
-            }
-            .padding(.horizontal, 26)
-            .padding(.vertical, 24)
-            .frame(maxWidth: 760, alignment: .leading)
+        Form {
+            content()
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .formStyle(.grouped)
+        .id(section)
     }
 
     private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Coffee break rhythm", systemImage: "cup.and.saucer.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(scheduler.preferencesSummaryTitle)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                    Text(scheduler.preferencesSummaryText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-            }
-
-            LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 12) {
-                summaryMetric("State", value: scheduler.currentStateTitle)
-                summaryMetric("Next", value: scheduler.nextBreakClockText)
-                summaryMetric("Blocker", value: scheduler.currentBlockerText)
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Label(scheduler.currentStateTitle, systemImage: "cup.and.saucer")
+                .font(.subheadline.weight(.semibold))
+            Text(scheduler.currentStateExplanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(22)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [Color.accentColor.opacity(0.18), Color.orange.opacity(0.08), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 18, y: 10)
     }
 
     private var schedulePage: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        Group {
             settingsCard(title: "Quick Setup", subtitle: "Start with a named rhythm, then adjust only if needed.") {
                 LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 12) {
                     ForEach(BreakScheduler.SetupPreset.allCases) { preset in
@@ -278,7 +238,7 @@ struct PreferencesContentView: View {
     }
 
     private var breaksPage: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        Group {
             settingsCard(title: "Protocol", subtitle: "Choose a break cadence or keep things fully custom.") {
                 LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 12) {
                     protocolCard(.eyeCare202020, subtitle: "20 min work, 20 sec eye rest")
@@ -341,7 +301,7 @@ struct PreferencesContentView: View {
     }
 
     private var focusPage: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        Group {
             settingsCard(title: "Calendar Integration", subtitle: "Delay breaks when your schedule says you are busy.") {
                 Toggle("Pause during calendar events", isOn: $scheduler.delayDuringMeetings)
                 Toggle("Only block accepted events", isOn: $scheduler.onlyAcceptedCalendarEvents)
@@ -410,7 +370,7 @@ struct PreferencesContentView: View {
     }
 
     private var advancedPage: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        Group {
             settingsCard(title: "Menu Bar", subtitle: "Choose how much information stays visible all day.") {
                 Picker("Menu Bar Mode", selection: $scheduler.menuBarMode) {
                     ForEach(BreakScheduler.MenuBarMode.allCases) { mode in
@@ -539,40 +499,6 @@ struct PreferencesContentView: View {
         }
     }
 
-    private func pageHeader(_ section: PreferencesSection) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(section.eyebrow.uppercased())
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
-                .tracking(0.8)
-            Text(section.title)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-            Text(section.description)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func summaryMetric(_ title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.headline.weight(.semibold))
-                .lineLimit(2)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.06))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
     private func diagnosticRow(_ title: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
             Text(title)
@@ -644,16 +570,17 @@ struct PreferencesContentView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
             .padding(14)
             .background(selected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(selected ? Color.accentColor.opacity(0.95) : Color.white.opacity(0.06), lineWidth: selected ? 2 : 1)
+                    .stroke(selected ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: selected ? 2 : 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func presetCard(_ preset: BreakScheduler.SetupPreset) -> some View {
@@ -670,16 +597,17 @@ struct PreferencesContentView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 98, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
             .padding(14)
             .background(selected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(selected ? Color.accentColor.opacity(0.95) : Color.white.opacity(0.06), lineWidth: selected ? 2 : 1)
+                    .stroke(selected ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: selected ? 2 : 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func statusStrip(title: String, detail: String) -> some View {
@@ -691,40 +619,19 @@ struct PreferencesContentView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.04))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func settingsCard<Content: View>(title: String, subtitle: String?, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.title3.weight(.semibold))
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
+        Section {
             content()
+        } header: {
+            Text(title)
+        } footer: {
+            if let subtitle {
+                Text(subtitle)
+            }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.92))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 12, y: 6)
     }
 
     private var dimLabel: String {

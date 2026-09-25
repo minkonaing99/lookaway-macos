@@ -53,30 +53,24 @@ final class BreakCompletionBadgeController {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.backgroundColor = .clear
         window.isOpaque = false
-        window.hasShadow = false
+        window.hasShadow = true
         window.ignoresMouseEvents = true
 
         let effectView = NSVisualEffectView(frame: window.contentView?.bounds ?? .zero)
         effectView.translatesAutoresizingMaskIntoConstraints = false
         effectView.material = .menu
-        effectView.blendingMode = .withinWindow
+        effectView.blendingMode = .behindWindow
         effectView.state = .active
         effectView.wantsLayer = true
         effectView.layer?.cornerRadius = 22
         effectView.layer?.cornerCurve = .continuous
-        effectView.layer?.borderWidth = 1
-        effectView.layer?.borderColor = NSColor.white.withAlphaComponent(0.05).cgColor
-        effectView.layer?.backgroundColor = NSColor(calibratedWhite: 0.14, alpha: 0.88).cgColor
-        effectView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.22).cgColor
-        effectView.layer?.shadowOpacity = 1
-        effectView.layer?.shadowRadius = 16
-        effectView.layer?.shadowOffset = CGSize(width: 0, height: -4)
+        effectView.layer?.masksToBounds = true
 
         let label = NSTextField(labelWithString: "✓  Break done")
         label.translatesAutoresizingMaskIntoConstraints = false
         label.alignment = .center
         label.font = .systemFont(ofSize: 16, weight: .semibold)
-        label.textColor = NSColor.white.withAlphaComponent(0.95)
+        label.textColor = .labelColor
 
         effectView.addSubview(label)
         NSLayoutConstraint.activate([

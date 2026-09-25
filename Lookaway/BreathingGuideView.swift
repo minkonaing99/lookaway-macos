@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct BreathingGuideView: View {
+    var reduceMotion = false
     private enum Phase {
         case inhale, hold, exhale
 
@@ -48,21 +49,21 @@ struct BreathingGuideView: View {
                         )
                     )
                     .frame(width: 148, height: 148)
-                    .scaleEffect(scale)
-                    .animation(.easeInOut(duration: phase.duration), value: scale)
+                    .scaleEffect(reduceMotion ? 1 : scale)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: phase.duration), value: scale)
                     .blur(radius: 3)
 
                 Circle()
                     .strokeBorder(Color.white.opacity(0.32), lineWidth: 1.5)
                     .frame(width: 148, height: 148)
-                    .scaleEffect(scale)
-                    .animation(.easeInOut(duration: phase.duration), value: scale)
+                    .scaleEffect(reduceMotion ? 1 : scale)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: phase.duration), value: scale)
             }
 
             Text(phase.label)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.88))
-                .animation(.easeInOut(duration: 0.25), value: phase.label)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: phase.label)
         }
         .onAppear {
             cycleTask = Task { @MainActor in
