@@ -170,7 +170,7 @@ extension BreakScheduler {
         protocolPreset = .custom
         breakStyle = .eyes
         enablePreAlert = true
-        preAlertPresentation = .pointerCountdown
+        preAlertPresentation = .centerBanner
         restOverlayDimAmount = 0.65
         showPerDisplayLabel = true
         scheduleEnabled = false
@@ -213,7 +213,7 @@ extension BreakScheduler {
             protocolPreset = .custom
             breakStyle = .eyes
             enablePreAlert = true
-            preAlertPresentation = .pointerCountdown
+            preAlertPresentation = .centerBanner
             focusBlocksEnabled = false
         case .eyeCare202020:
             intervalOption = .min20
@@ -221,14 +221,14 @@ extension BreakScheduler {
             protocolPreset = .eyeCare202020
             breakStyle = .eyes
             enablePreAlert = true
-            preAlertPresentation = .pointerCountdown
+            preAlertPresentation = .centerBanner
         case .pomodoro:
             intervalOption = .min25
             restDurationOption = .min5
             protocolPreset = .pomodoro
             breakStyle = .stretch
             enablePreAlert = true
-            preAlertPresentation = .pointerCountdown
+            preAlertPresentation = .centerBanner
         case .deepWork:
             intervalOption = .min30
             restDurationOption = .sec30

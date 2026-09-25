@@ -273,19 +273,15 @@ extension BreakScheduler {
     }
 
     enum PreAlertPresentation: String, CaseIterable, Identifiable {
-        case pointerCountdown
         case centerBanner
         case notification
-        case screenDim
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .pointerCountdown: return "Countdown beside pointer"
             case .centerBanner: return "Center-screen banner"
             case .notification: return "System notification"
-            case .screenDim: return "Gradual screen dim"
             }
         }
     }

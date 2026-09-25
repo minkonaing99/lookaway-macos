@@ -67,10 +67,8 @@ struct MenuBarContentView: View {
 
     private var preAlertLabel: String {
         switch scheduler.preAlertPresentation {
-        case .pointerCountdown: return "Break soon near pointer"
         case .centerBanner: return "Break soon on screen"
         case .notification: return "Break soon — notification sent"
-        case .screenDim: return "Break soon — screen dimming"
         }
     }
 
@@ -461,8 +459,8 @@ struct PreferencesContentView: View {
                 statusStrip(title: "Power", detail: scheduler.powerContextText)
             }
 
-            settingsCard(title: "Testing", subtitle: "Preview the pointer countdown and overlay without waiting.") {
-                Button(scheduler.preAlertPresentation == .centerBanner ? "Test Banner + Break" : "Test Countdown + Break") {
+            settingsCard(title: "Testing", subtitle: "Preview your selected cue and break overlay without waiting.") {
+                Button(scheduler.preAlertPresentation == .centerBanner ? "Test Banner + Break" : "Test Notification + Break") {
                     scheduler.runBreakTest()
                 }
                 .buttonStyle(.borderedProminent)

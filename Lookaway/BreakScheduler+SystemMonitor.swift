@@ -74,17 +74,15 @@ extension BreakScheduler {
     }
 
     func setAutoPause(_ reason: String, active: Bool) {
-        if active {
-            autoPauseReasons.insert(reason)
-        } else {
-            autoPauseReasons.remove(reason)
-        }
+        guard autoPauseReasons.contains(reason) != active else { return }
+        autoPauseReasons = active ? autoPauseReasons.union([reason]) : autoPauseReasons.subtracting([reason])
         refreshPauseState()
     }
 
     func refreshPauseState() {
         let wasPaused = isPaused
-        isPaused = manualPauseEnabled || !autoPauseReasons.isEmpty
+        let paused = manualPauseEnabled || !autoPauseReasons.isEmpty
+        if isPaused != paused { isPaused = paused }
         if isPaused && !isRunningBreakTest {
             clearPreAlertUI()
         } else if wasPaused && !isPaused && !isShowingBreak && !isRunningBreakTest {

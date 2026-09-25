@@ -5,9 +5,13 @@ final class CenterPreBreakBannerController {
     private var window: NSWindow?
     private weak var textField: NSTextField?
     private var hideWorkItem: DispatchWorkItem?
+    private var presentationID = UUID()
+    private var isHiding = false
 
     func show(message: String) {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        presentationID = UUID()
+        isHiding = false
         let window = self.window ?? makeWindow(for: screen)
         let frame = bannerFrame(in: screen.visibleFrame)
 
@@ -17,7 +21,7 @@ final class CenterPreBreakBannerController {
         window.orderFrontRegardless()
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
+            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             window.animator().alphaValue = 1
         }
@@ -34,13 +38,19 @@ final class CenterPreBreakBannerController {
         hideWorkItem?.cancel()
         hideWorkItem = nil
 
-        guard let window, window.isVisible else { return }
+        guard let window, window.isVisible, !isHiding else { return }
+        isHiding = true
+        let hidingID = presentationID
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.24
+            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             window.animator().alphaValue = 0
-        } completionHandler: {
-            window.orderOut(nil)
+        } completionHandler: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.presentationID == hidingID else { return }
+                window.orderOut(nil)
+                self.isHiding = false
+            }
         }
     }
 
@@ -59,36 +69,52 @@ final class CenterPreBreakBannerController {
         window.hasShadow = true
         window.ignoresMouseEvents = true
 
-        let effectView = NSVisualEffectView(frame: window.contentView?.bounds ?? .zero)
-        effectView.translatesAutoresizingMaskIntoConstraints = false
-        effectView.material = .menu
-        effectView.blendingMode = .behindWindow
-        effectView.state = .active
-        effectView.wantsLayer = true
-        effectView.layer?.cornerRadius = 30
-        effectView.layer?.cornerCurve = .continuous
-        effectView.layer?.masksToBounds = true
+        let content = NSView(frame: NSRect(origin: .zero, size: window.frame.size))
+        let glass = NSGlassEffectView(frame: content.bounds)
+        glass.style = .regular
+        glass.cornerRadius = 28
+        glass.contentView = content
 
+        configureContent(content)
+        window.contentView = glass
+        self.window = window
+        return window
+    }
+
+    private func configureContent(_ content: NSView) {
         let textField = NSTextField(labelWithString: "")
         textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.alignment = .center
-        textField.font = .systemFont(ofSize: 20, weight: .semibold)
+        textField.alignment = .left
+        textField.font = .systemFont(ofSize: 19, weight: .semibold)
         textField.textColor = .labelColor
         textField.lineBreakMode = .byWordWrapping
         textField.maximumNumberOfLines = 2
 
-        effectView.addSubview(textField)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "cup.and.saucer.fill", accessibilityDescription: nil) ?? NSImage())
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 26, weight: .medium)
+        icon.contentTintColor = .labelColor
+        let subtitle = NSTextField(labelWithString: "A moment to rest your eyes")
+        subtitle.font = .systemFont(ofSize: 13)
+        subtitle.textColor = .secondaryLabelColor
+        let labels = NSStackView(views: [textField, subtitle])
+        labels.orientation = .vertical
+        labels.alignment = .leading
+        labels.spacing = 5
+        labels.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(icon)
+        content.addSubview(labels)
         NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: effectView.leadingAnchor, constant: 28),
-            textField.trailingAnchor.constraint(equalTo: effectView.trailingAnchor, constant: -28),
-            textField.topAnchor.constraint(equalTo: effectView.topAnchor, constant: 22),
-            textField.bottomAnchor.constraint(equalTo: effectView.bottomAnchor, constant: -22)
+            icon.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
+            icon.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 36),
+            icon.heightAnchor.constraint(equalToConstant: 36),
+            labels.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 16),
+            labels.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -24),
+            labels.centerYAnchor.constraint(equalTo: content.centerYAnchor)
         ])
 
-        window.contentView = effectView
-        self.window = window
         self.textField = textField
-        return window
     }
 
     private func bannerFrame(in visibleFrame: NSRect) -> NSRect {

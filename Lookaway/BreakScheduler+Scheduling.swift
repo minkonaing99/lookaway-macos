@@ -13,12 +13,19 @@ extension BreakScheduler {
         ticker = nil
     }
 
-    private func scheduleNextTick() {
+    func rearmTicker() {
         guard tickerActive else { return }
+        ticker?.invalidate()
+        ticker = nil
+        scheduleNextTick()
+    }
+
+    private func scheduleNextTick() {
+        guard tickerActive, ticker == nil else { return }
         let interval = tickInterval()
-        let t = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self, self.tickerActive else { return }
+        let t = Timer(timeInterval: interval, repeats: false) { [weak self] firedTimer in
+            MainActor.assumeIsolated {
+                guard let self, self.tickerActive, self.ticker === firedTimer else { return }
                 self.ticker = nil
                 self.tick()
                 self.scheduleNextTick()
@@ -30,7 +37,7 @@ extension BreakScheduler {
     }
 
     func tickInterval(now: Date = .now) -> TimeInterval {
-        guard !isPaused, !isShowingBreak else { return 30 }
+        guard (!isPaused || isRunningBreakTest), !isShowingBreak else { return 30 }
         let remaining = nextBreakDate.timeIntervalSince(now)
         if remaining <= 35 { return 1 }
         if remaining <= 120 { return 5 }
@@ -72,25 +79,16 @@ extension BreakScheduler {
             if isFirstPreAlertTick {
                 preAlertTriggeredThisCycle = true
             }
-            isInPreAlert = true
+            if !isInPreAlert { isInPreAlert = true }
 
             switch preAlertPresentation {
-            case .pointerCountdown:
-                pointerCountdownController.show(secondsRemaining: Int(ceil(remaining)))
-                centerPreBreakBannerController.hide()
             case .centerBanner:
-                pointerCountdownController.hide()
                 showCenterBannerIfNeeded(secondsRemaining: Int(ceil(remaining)))
             case .notification:
-                pointerCountdownController.hide()
                 centerPreBreakBannerController.hide()
                 if isFirstPreAlertTick {
                     notificationManager.sendPreAlert(style: breakStyle, secondsRemaining: Int(ceil(remaining)))
                 }
-            case .screenDim:
-                pointerCountdownController.hide()
-                centerPreBreakBannerController.hide()
-                dimPreAlertController.show(secondsRemaining: remaining)
             }
         } else {
             clearPreAlertUI()
@@ -149,22 +147,19 @@ extension BreakScheduler {
     }
 
     func clearPreAlertUI() {
+        guard isInPreAlert else { return }
         isInPreAlert = false
-        pointerCountdownController.hide()
         centerPreBreakBannerController.hide()
-        dimPreAlertController.hide()
         notificationManager.cancelPreAlert()
     }
 
     func showCenterBannerIfNeeded(secondsRemaining: Int) {
-        let milestones = [30, 5]
-
-        for milestone in milestones where secondsRemaining <= milestone && !shownCenterBannerMilestones.contains(milestone) {
-            shownCenterBannerMilestones.insert(milestone)
-            let unit = milestone == 1 ? "second" : "seconds"
-            centerPreBreakBannerController.show(message: "Break in \(milestone) \(unit)")
-            break
-        }
+        guard secondsRemaining > 0, secondsRemaining <= 30 else { return }
+        let milestone = secondsRemaining <= 5 ? 5 : 30
+        guard !shownCenterBannerMilestones.contains(milestone) else { return }
+        shownCenterBannerMilestones = shownCenterBannerMilestones.union(milestone == 5 ? [30, 5] : [30])
+        let unit = secondsRemaining == 1 ? "second" : "seconds"
+        centerPreBreakBannerController.show(message: "Break in \(secondsRemaining) \(unit)")
     }
 
     func finishBreakTest() {

@@ -7,14 +7,13 @@ final class NotificationManager {
     private var isAuthorized = false
 
     func requestAuthorization() {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
             Task { @MainActor in
+                let center = UNUserNotificationCenter.current()
                 switch settings.authorizationStatus {
                 case .notDetermined:
                     // Request without sound
-                    try? await center.requestAuthorization(options: [.alert, .badge])
-                    self.isAuthorized = true
+                    self.isAuthorized = (try? await center.requestAuthorization(options: [.alert, .badge])) ?? false
                 case .authorized, .provisional, .ephemeral:
                     self.isAuthorized = true
                 default:

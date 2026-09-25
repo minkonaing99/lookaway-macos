@@ -115,14 +115,10 @@ extension BreakScheduler {
             blockerText = "No blocker"
             if isInPreAlert {
                 switch preAlertPresentation {
-                case .pointerCountdown:
-                    explanation = "Countdown is active near the pointer. Break starts at \(nextBreakClockText)."
                 case .centerBanner:
                     explanation = "A soft center-screen banner is active. Break starts at \(nextBreakClockText)."
                 case .notification:
                     explanation = "A system notification has been sent. Break starts at \(nextBreakClockText)."
-                case .screenDim:
-                    explanation = "The screen is gently dimming. Break starts at \(nextBreakClockText)."
                 }
             } else {
                 explanation = "Next coffee reset is scheduled for \(nextBreakClockText)."

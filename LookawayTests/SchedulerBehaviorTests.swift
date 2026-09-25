@@ -1,3 +1,4 @@
+import Combine
 import Testing
 import Foundation
 @testable import Lookaway
@@ -299,5 +300,71 @@ struct QuantizedProgressTests {
 
     @Test func clampsNegativeRemaining() {
         #expect(BreakScheduler.quantizedProgress(remaining: -20, interval: 1500) == 1)
+    }
+}
+
+@Suite("pre-alert optimization")
+struct PreAlertOptimizationTests {
+    @Test func onlySupportedCuesAreOffered() {
+        #expect(BreakScheduler.PreAlertPresentation.allCases.map(\.rawValue) == ["centerBanner", "notification"])
+    }
+
+    @Test func unchangedPauseReasonDoesNotPublish() {
+        let scheduler = BreakScheduler()
+        scheduler.stopTicker()
+        scheduler.setAutoPause("test", active: true)
+        var updates = 0
+        let subscription = scheduler.objectWillChange.sink { updates += 1 }
+        scheduler.setAutoPause("test", active: true)
+        #expect(updates == 0)
+        withExtendedLifetime(subscription) {}
+        scheduler.setAutoPause("test", active: false)
+    }
+
+    @Test func changedDeadlineRearmsActiveTimer() {
+        let scheduler = BreakScheduler()
+        defer { scheduler.stopTicker() }
+        let original = scheduler.ticker
+        scheduler.nextBreakDate = .now.addingTimeInterval(10)
+        #expect(scheduler.ticker !== original)
+        #expect((scheduler.ticker?.fireDate.timeIntervalSinceNow ?? 30) < 2)
+    }
+
+    @Test func changedDeadlineDoesNotRestartStoppedTimer() {
+        let scheduler = BreakScheduler()
+        scheduler.stopTicker()
+        scheduler.nextBreakDate = .now.addingTimeInterval(10)
+        #expect(scheduler.ticker == nil)
+        #expect(!scheduler.tickerActive)
+    }
+
+    @Test func staleTickDoesNotReplaceRearmedTimer() async {
+        let scheduler = BreakScheduler()
+        defer { scheduler.stopTicker() }
+        scheduler.ticker?.fire()
+        scheduler.nextBreakDate = .now.addingTimeInterval(300)
+        let replacement = scheduler.ticker
+        await Task.yield()
+        #expect(scheduler.ticker === replacement)
+    }
+
+    @Test func lateBannerSkipsExpiredMilestone() {
+        let scheduler = BreakScheduler()
+        defer {
+            scheduler.stopTicker()
+            scheduler.centerPreBreakBannerController.hide()
+        }
+        scheduler.showCenterBannerIfNeeded(secondsRemaining: 4)
+        #expect(scheduler.shownCenterBannerMilestones == [30, 5])
+    }
+
+    @Test func pausedTestStillUsesTimelyTicks() {
+        let scheduler = BreakScheduler()
+        defer { scheduler.stopTicker() }
+        scheduler.manualPauseEnabled = true
+        scheduler.isRunningBreakTest = true
+        let now = Date()
+        scheduler.nextBreakDate = now.addingTimeInterval(10)
+        #expect(scheduler.tickInterval(now: now) == 1)
     }
 }

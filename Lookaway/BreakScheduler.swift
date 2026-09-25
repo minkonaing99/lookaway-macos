@@ -271,7 +271,9 @@ final class BreakScheduler: ObservableObject {
     // Note: these are set from extension files, so private(set) cannot be used here.
 
     @Published var selectedSetupPreset: SetupPreset?
-    @Published var nextBreakDate: Date
+    @Published var nextBreakDate: Date {
+        didSet { rearmTicker() }
+    }
     @Published var isPaused = false
     @Published var isShowingBreak = false
     @Published var isInPreAlert = false
@@ -296,9 +298,7 @@ final class BreakScheduler: ObservableObject {
     // MARK: - Private state
 
     let overlayController = RestOverlayController()
-    let pointerCountdownController = PointerCountdownOverlayController()
     let centerPreBreakBannerController = CenterPreBreakBannerController()
-    let dimPreAlertController = DimPreAlertOverlayController()
     let breakCompletionBadgeController = BreakCompletionBadgeController()
     let notificationManager = NotificationManager()
     let webcamMonitor = WebcamActivityMonitor()
@@ -337,15 +337,7 @@ final class BreakScheduler: ObservableObject {
         breakStyle = BreakStyle(rawValue: defaults.string(forKey: Keys.breakStyle) ?? "") ?? .eyes
         enablePreAlert = defaults.object(forKey: Keys.preAlertEnabled) as? Bool ?? true
         let savedPreAlertPresentation = defaults.string(forKey: Keys.preAlertPresentation)
-        let legacyPointerCountdownEnabled = defaults.object(forKey: Keys.pointerCountdownEnabled) as? Bool
-        if let savedPreAlertPresentation,
-           let presentation = PreAlertPresentation(rawValue: savedPreAlertPresentation) {
-            preAlertPresentation = presentation
-        } else if legacyPointerCountdownEnabled == false {
-            preAlertPresentation = .centerBanner
-        } else {
-            preAlertPresentation = .pointerCountdown
-        }
+        preAlertPresentation = PreAlertPresentation(rawValue: savedPreAlertPresentation ?? "") ?? .centerBanner
         restOverlayDimAmount = defaults.object(forKey: Keys.dimAmount) as? Double ?? 0.65
         showPerDisplayLabel = defaults.object(forKey: Keys.showDisplayLabel) as? Bool ?? true
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? LaunchAtLoginManager.isEnabled()
