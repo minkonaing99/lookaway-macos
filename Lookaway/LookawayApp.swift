@@ -12,6 +12,13 @@ struct LookawayApp: App {
         }
         .menuBarExtraStyle(.window)
 
+        Window("Welcome to LookAway", id: "welcome") {
+            OnboardingView(scheduler: scheduler)
+        }
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(scheduler.hasCompletedOnboarding ? .suppressed : .presented)
+
         Settings {
             PreferencesContentView(scheduler: scheduler)
                 .frame(minWidth: 860, minHeight: 660)
@@ -111,6 +118,8 @@ struct LookawayApp: App {
             return "Meeting"
         case "Break soon":
             return "Break Soon"
+        case "Waiting for a pause":
+            return "Break Due"
         default:
             return scheduler.menuBarStatusText
         }

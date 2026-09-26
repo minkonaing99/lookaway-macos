@@ -5,9 +5,17 @@ extension BreakScheduler {
         var completed: Int = 0
         var skipped: Int = 0
         var snoozed: Int = 0
+        var completedBreakSeconds: TimeInterval?
+        var longestWorkSeconds: TimeInterval?
     }
 
     enum Keys {
+        static let manualPauseResumeAt = "lookaway.manualPauseResumeAt"
+        static let longBreaksEnabled = "lookaway.longBreaksEnabled"
+        static let longBreakEvery = "lookaway.longBreakEvery"
+        static let longBreakDuration = "lookaway.longBreakDuration"
+        static let completedShortBreaks = "lookaway.completedShortBreaks"
+        static let hasCompletedOnboarding = "lookaway.hasCompletedOnboarding"
         static let interval = "lookaway.interval"
         static let restDuration = "lookaway.restDuration"
         static let protocolPreset = "lookaway.protocolPreset"
@@ -301,6 +309,8 @@ extension BreakScheduler {
         let completionRate: Double
         let bestDayOfWeek: String?
         let weeklyChartData: [DayChartEntry]
+        var completedBreakSeconds: TimeInterval = 0
+        var longestWorkSeconds: TimeInterval = 0
 
         static let empty = ExtendedStatsSnapshot(
             currentStreak: 0,

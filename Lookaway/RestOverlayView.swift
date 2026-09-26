@@ -6,6 +6,7 @@ struct RestOverlayView: View {
     let restDuration: Int
     let deadline: Date
     let style: BreakScheduler.BreakStyle
+    let isLongBreak: Bool
     let dimAmount: Double
     let displayName: String?
     let customPrompts: [String]?
@@ -28,6 +29,7 @@ struct RestOverlayView: View {
         restDuration: Int,
         deadline: Date,
         style: BreakScheduler.BreakStyle,
+        isLongBreak: Bool = false,
         dimAmount: Double,
         displayName: String?,
         customPrompts: [String]?,
@@ -41,6 +43,7 @@ struct RestOverlayView: View {
         self.restDuration = restDuration
         self.deadline = deadline
         self.style = style
+        self.isLongBreak = isLongBreak
         self.dimAmount = dimAmount
         self.displayName = displayName
         self.customPrompts = customPrompts
@@ -230,6 +233,7 @@ struct RestOverlayView: View {
     }
 
     private var styleTitle: String {
+        if isLongBreak { return "Long break" }
         switch style {
         case .eyes: return "Rest your eyes"
         case .breathing: return "Breathing Break"

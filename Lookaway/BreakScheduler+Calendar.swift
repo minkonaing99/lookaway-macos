@@ -78,34 +78,23 @@ extension BreakScheduler {
     }
 
     func currentBlockingMeeting(at date: Date) -> EKEvent? {
-        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return nil }
-
-        if date.timeIntervalSince(meetingCacheTimestamp) < 300 {
-            return cachedMeetingEvent
+        guard meetingEventsProvider != nil || EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return nil }
+        if date < meetingCacheTimestamp || date.timeIntervalSince(meetingCacheTimestamp) >= 300 {
+            cachedMeetingEvents = meetingEventsProvider?(date) ?? fetchMeetingEvents(at: date)
+            meetingCacheTimestamp = date
         }
+        return cachedMeetingEvents.filter { event in
+            guard !event.isAllDay, event.startDate <= date, event.endDate > date,
+                  event.availability != .free, event.status != .canceled else { return false }
+            return !onlyAcceptedCalendarEvents || event.status == .confirmed || event.status == .none
+        }.min { $0.endDate < $1.endDate }
+    }
 
-        let lookBack: TimeInterval = 5 * 60
-        let lookAhead: TimeInterval = 8 * 60 * 60
-        let start = date.addingTimeInterval(-lookBack)
-        let end = date.addingTimeInterval(lookAhead)
-        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
-        let events = eventStore.events(matching: predicate)
-
-        var matchingEvents: [EKEvent] = []
-        for event in events {
-            guard !event.isAllDay else { continue }
-            guard event.startDate <= date, event.endDate > date else { continue }
-            guard event.availability != .free else { continue }
-            if onlyAcceptedCalendarEvents {
-                guard event.status != .canceled else { continue }
-                guard event.status == .confirmed || event.status == .none else { continue }
-            }
-            matchingEvents.append(event)
-        }
-
-        cachedMeetingEvent = matchingEvents.sorted { $0.endDate < $1.endDate }.first
-
-        meetingCacheTimestamp = date
-        return cachedMeetingEvent
+    private func fetchMeetingEvents(at date: Date) -> [EKEvent] {
+        let predicate = eventStore.predicateForEvents(
+            withStart: date.addingTimeInterval(-300),
+            end: date.addingTimeInterval(8 * 60 * 60), calendars: nil
+        )
+        return eventStore.events(matching: predicate)
     }
 }

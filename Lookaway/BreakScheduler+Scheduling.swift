@@ -37,6 +37,9 @@ extension BreakScheduler {
     }
 
     func tickInterval(now: Date = .now) -> TimeInterval {
+        if manualPauseEnabled, !isRunningBreakTest, let deadline = manualPauseResumeAt {
+            return max(1, min(30, deadline.timeIntervalSince(now)))
+        }
         guard (!isPaused || isRunningBreakTest), !isShowingBreak else { return 30 }
         let remaining = nextBreakDate.timeIntervalSince(now)
         if remaining <= 35 { return 1 }
@@ -44,10 +47,12 @@ extension BreakScheduler {
         return 30
     }
 
-    func tick() {
-        let now = Date()
+    func tick(now: Date = .now) {
+        expireTimedPause(now: now)
         refreshContextIfNeeded(now)
         checkIdleState()
+        updateWorkSession(now: now)
+        if now.timeIntervalSince(lastStatsRefresh) >= 30 { refreshStats(now: now) }
         if adaptiveIntervalsEnabled, !isPaused, !isShowingBreak {
             recordActivitySample()
         }
@@ -68,6 +73,7 @@ extension BreakScheduler {
 
         if case .none = blocker {
         } else {
+            inputDeferralStartedAt = nil
             clearPreAlertUI()
             softlyRescheduleIfNeeded(for: blocker, now: now)
             return
@@ -103,20 +109,41 @@ extension BreakScheduler {
                 return
             }
 
+            if shouldDeferBreak(now: now) {
+                refreshDerivedState(now: now, blocker: .none)
+                return
+            }
             lastBreakReasonText = "Scheduled break started"
             showBreak()
         }
     }
 
-    func showBreak() {
+    func showBreak(previewDuration: TimeInterval? = nil) {
+        guard !isShowingBreak, systemSuspensions.isEmpty else { return }
         clearPreAlertUI()
+        inputDeferralStartedAt = nil
+        endWorkSession(at: .now)
         isShowingBreak = true
+        activeBreakID = UUID()
+        activeBreakStartedAt = .now
+        activeBreakIsLong = !isShowingTestBreak && nextBreakIsLong
+        activeBreakCountsTowardCycle = longBreaksEnabled && !isShowingTestBreak
+        activeBreakStyle = activeBreakIsLong ? .stretch : breakStyle
+        activeBreakDuration = isShowingTestBreak ? (previewDuration ?? TimeInterval(restDurationOption.rawValue)) : nextBreakDuration
+        activeBreakDeadline = activeBreakStartedAt?.addingTimeInterval(activeBreakDuration)
         mediaPlaybackController.beginBreak()
         refreshDerivedState(now: .now)
-        let prompts = customPrompts[breakStyle.rawValue]
+        presentBreakOverlay()
+    }
+
+    func presentBreakOverlay() {
+        guard isShowingBreak, let deadline = activeBreakDeadline, let breakID = activeBreakID else { return }
+        let prompts = customPrompts[activeBreakStyle.rawValue]
         overlayController.showOverlay(
-            restDuration: restDurationOption.rawValue,
-            style: breakStyle,
+            restDuration: Int(activeBreakDuration),
+            deadline: deadline,
+            style: activeBreakStyle,
+            isLongBreak: activeBreakIsLong,
             dimAmount: effectiveDimAmount,
             showDisplayLabel: showPerDisplayLabel,
             customPrompts: prompts,
@@ -126,11 +153,13 @@ extension BreakScheduler {
             reduceMotion: shouldLowerIntensityForPower,
             onDismiss: { [weak self] in
                 Task { @MainActor [weak self] in
+                    guard self?.activeBreakID == breakID else { return }
                     self?.dismissBreakCompleted()
                 }
             },
             onSkip: { [weak self] in
                 Task { @MainActor [weak self] in
+                    guard self?.activeBreakID == breakID else { return }
                     self?.skipOnce()
                 }
             }
@@ -138,6 +167,7 @@ extension BreakScheduler {
     }
 
     func scheduleNextBreak(from base: Date) {
+        inputDeferralStartedAt = nil
         let interval = effectiveIntervalSeconds
         currentCycleIntervalSeconds = interval
         nextBreakDate = base.addingTimeInterval(interval)
@@ -200,23 +230,7 @@ extension BreakScheduler {
     }
 
     var effectiveIntervalSeconds: TimeInterval {
-        if selectedSetupPreset != nil {
-            return intervalOption.seconds
-        }
-
-        var seconds = intervalOption.seconds
-
-        if deviceAwareModeEnabled, hasExternalDisplayConnected() {
-            seconds *= 0.9
-        }
-
-        if shouldLowerIntensityForPower {
-            seconds *= 1.25
-        }
-
-        seconds *= adaptiveActivityMultiplier
-
-        return max(60, seconds)
+        max(60, intervalOption.seconds * adaptiveActivityMultiplier)
     }
 
     // MARK: - Adaptive intervals
@@ -252,7 +266,7 @@ extension BreakScheduler {
     }
 
     var effectivePreAlertEnabled: Bool {
-        enablePreAlert && !shouldLowerIntensityForPower
+        enablePreAlert
     }
 
     var effectiveDimAmount: Double {

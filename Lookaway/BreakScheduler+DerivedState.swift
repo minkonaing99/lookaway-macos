@@ -24,10 +24,11 @@ extension BreakScheduler {
 
     func refreshDerivedState(now: Date, blocker: RuntimeBlocker) {
         refreshCalendarStatus(now: now)
-        updateCountdownLabels(now: now, blocker: blocker)
-        updateStatusTexts(now: now, blocker: blocker)
         let newClockText = Self.clockFormatter.string(from: nextBreakDate)
         if nextBreakClockText != newClockText { nextBreakClockText = newClockText }
+        updateCountdownLabels(now: now, blocker: blocker)
+        updateStatusTexts(now: now, blocker: blocker)
+        updateWorkSession(now: now)
     }
 
     func updateCountdownLabels(now: Date, blocker: RuntimeBlocker) {
@@ -80,8 +81,10 @@ extension BreakScheduler {
         switch blocker {
         case .paused:
             title = "Paused"
-            explanation = "LookAway is paused because the Mac is locked, sleeping, or you paused reminders manually."
-            blockerText = "Paused"
+            explanation = manualPauseEnabled
+                ? manualPauseExplanation
+                : "Reminders resume automatically when these conditions clear."
+            blockerText = pauseReasonText
         case .outsideSchedule(let nextStart):
             title = "Outside schedule"
             if let nextStart {
@@ -111,9 +114,12 @@ extension BreakScheduler {
                 blockerText = "Meeting active"
             }
         case .none:
-            title = isInPreAlert ? "Break soon" : "Working"
-            blockerText = "No blocker"
-            if isInPreAlert {
+            title = inputDeferralStartedAt != nil ? "Waiting for a pause" : (isInPreAlert ? "Break soon" : "Working")
+            blockerText = inputDeferralStartedAt != nil ? "Finishing your input" : "No blocker"
+            if let start = inputDeferralStartedAt {
+                let remaining = max(0, Int(ceil(30 - now.timeIntervalSince(start))))
+                explanation = "Waiting for a 3-second input gap. Break starts within \(remaining) seconds."
+            } else if isInPreAlert {
                 switch preAlertPresentation {
                 case .centerBanner:
                     explanation = "A soft center-screen banner is active. Break starts at \(nextBreakClockText)."
@@ -121,13 +127,45 @@ extension BreakScheduler {
                     explanation = "A system notification has been sent. Break starts at \(nextBreakClockText)."
                 }
             } else {
-                explanation = "Next coffee reset is scheduled for \(nextBreakClockText)."
+                explanation = "Next break is scheduled for \(nextBreakClockText)."
             }
         }
 
+        if isShowingBreak {
+            currentStateTitle = activeBreakIsLong ? "Taking a long break" : "Taking a break"
+            currentStateExplanation = "Your next work cycle starts when this break ends."
+            currentBlockerText = "Break in progress"
+            return
+        }
         if currentStateTitle != title { currentStateTitle = title }
         if currentStateExplanation != explanation { currentStateExplanation = explanation }
         if currentBlockerText != blockerText { currentBlockerText = blockerText }
+    }
+
+    var pauseReasonText: String {
+        let reasons = [
+            ("sleep", "Mac sleeping"), ("session", "Mac locked"),
+            ("idle", "No recent activity"), ("frontmostApp", "An excluded app is active"),
+            ("webcam", "Camera in use")
+        ].compactMap { autoPauseReasons.contains($0.0) ? $0.1 : nil }
+        return ((manualPauseEnabled ? ["Paused manually"] : []) + reasons).joined(separator: "; ")
+    }
+
+    var showsNextBreakTime: Bool {
+        !isShowingBreak && (currentStateTitle == "Working" || currentStateTitle == "Break soon")
+    }
+
+    var showsCalendarAttention: Bool {
+        delayDuringMeetings && calendarStatusText != "Connected"
+    }
+
+    var cadenceExplanation: String {
+        let current = String(format: "%.1f", currentCycleIntervalSeconds / 60)
+        let next = String(format: "%.1f", effectiveIntervalSeconds / 60)
+        if adaptiveIntervalsEnabled {
+            return "Current cycle: \(current) min. Next cycle estimate: \(next) min. Activity adjusts each new cycle from 15% shorter to 20% longer. The current deadline stays fixed."
+        }
+        return "New cycles: \(intervalOption.title). Current cycle: \(current) min. Power and displays never change break timing."
     }
 
     var scheduleSummaryText: String {

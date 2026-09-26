@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarContentView: View {
     @ObservedObject var scheduler: BreakScheduler
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -37,21 +38,37 @@ struct MenuBarContentView: View {
             Toggle("Pause reminders", isOn: $scheduler.manualPauseEnabled)
                 .toggleStyle(.switch)
 
+            Menu("Pause for...") {
+                ForEach(BreakScheduler.TimedPauseOption.allCases) { option in
+                    Button(option.title) { scheduler.pauseReminders(option) }
+                }
+            }
+
+            if scheduler.longBreaksEnabled {
+                Text(scheduler.longBreakProgressText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let settingsError = scheduler.settingsError {
                 Text(settingsError)
                     .font(.caption)
                     .foregroundStyle(.red)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(scheduler.calendarStatusText)
-                    .font(.caption.weight(.semibold))
-                Text(scheduler.calendarDetailText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if scheduler.showsCalendarAttention {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(scheduler.calendarStatusText)
+                        .font(.caption.weight(.semibold))
+                    Text(scheduler.calendarDetailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Divider()
+
+            Button("Quick setup...") { openWindow(id: "welcome") }
 
             HStack {
                 SettingsLink { Text("Settings...") }
@@ -78,9 +95,11 @@ struct MenuBarContentView: View {
                 Text(scheduler.currentStateTitle)
                     .font(.headline)
                 Spacer()
-                Text(scheduler.nextBreakClockText)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                if scheduler.showsNextBreakTime {
+                    Text(scheduler.nextBreakClockText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Text(heroText)
@@ -134,7 +153,7 @@ private enum PreferencesSection: String, CaseIterable, Identifiable {
 
 struct PreferencesContentView: View {
     @ObservedObject var scheduler: BreakScheduler
-    @State private var selection: PreferencesSection? = .schedule
+    @State private var selection: PreferencesSection? = .breaks
 
     private let weekdayColumns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
     private let cardColumns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
@@ -209,14 +228,6 @@ struct PreferencesContentView: View {
 
     private var schedulePage: some View {
         Group {
-            settingsCard(title: "Quick Setup", subtitle: "Start with a named rhythm, then adjust only if needed.") {
-                LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 12) {
-                    ForEach(BreakScheduler.SetupPreset.allCases) { preset in
-                        presetCard(preset)
-                    }
-                }
-            }
-
             settingsCard(title: "Working Hours", subtitle: "Restrict reminders to the part of the week that matters.") {
                 Toggle("Only remind during work schedule", isOn: $scheduler.scheduleEnabled)
                     .toggleStyle(.switch)
@@ -237,11 +248,11 @@ struct PreferencesContentView: View {
 
     private var breaksPage: some View {
         Group {
-            settingsCard(title: "Protocol", subtitle: "Choose a break cadence or keep things fully custom.") {
+            settingsCard(title: "Rhythm", subtitle: "Choose a starting rhythm, then adjust interval and duration below.") {
                 LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 12) {
-                    protocolCard(.eyeCare202020, subtitle: "20 min work, 20 sec eye rest")
-                    protocolCard(.pomodoro, subtitle: "25 min focus, 5 min reset")
-                    protocolCard(.custom, subtitle: "Tune timing yourself")
+                    ForEach(BreakScheduler.SetupPreset.allCases) { preset in
+                        presetCard(preset)
+                    }
                 }
             }
 
@@ -284,11 +295,24 @@ struct PreferencesContentView: View {
                 Toggle("Adaptive interval (adjust to your activity level)", isOn: $scheduler.adaptiveIntervalsEnabled)
                     .toggleStyle(.switch)
 
-                if scheduler.adaptiveIntervalsEnabled {
-                    statusStrip(
-                        title: "Adaptive timing is on",
-                        detail: "LookAway samples keyboard and mouse activity. Heavy screen use brings the next break up to 15% sooner; light use pushes it up to 20% later."
-                    )
+                statusStrip(title: "Your break timing", detail: scheduler.cadenceExplanation)
+                Text("Scheduled breaks wait for a 3-second typing or dragging pause, up to 30 seconds. Start Break and previews begin immediately.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            settingsCard(title: "Occasional long breaks", subtitle: "After the selected number of completed short breaks, the next scheduled break is long. Skips, snoozes, and previews never advance the count.") {
+                Toggle("Include long breaks", isOn: $scheduler.longBreaksEnabled)
+                if scheduler.longBreaksEnabled {
+                    Stepper("After \(scheduler.longBreakEvery) completed short breaks", value: $scheduler.longBreakEvery, in: 2...12)
+                    Picker("Long break duration", selection: $scheduler.longBreakDuration) {
+                        ForEach(BreakScheduler.LongBreakDuration.allCases) { duration in
+                            Text(duration.title).tag(duration)
+                        }
+                    }
+                    Text(scheduler.longBreakProgressText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -354,10 +378,10 @@ struct PreferencesContentView: View {
                 )
             }
 
-            settingsCard(title: "Recovery Logic", subtitle: "How LookAway behaves after blockers clear.") {
+            settingsCard(title: "After meetings and focus blocks", subtitle: "What happens when a break falls during a protected time.") {
                 statusStrip(
-                    title: "Soft rescheduling is active",
-                    detail: "Short blockers postpone the break to just after the blocker ends. Long blockers restart a fresh cycle after the blocker finishes."
+                    title: "Time to settle back in",
+                    detail: "If 10 minutes or less remain when a break is due, it moves to 1 minute after the meeting or focus block ends. Otherwise, a fresh work interval follows. Another active pause can delay it further."
                 )
             }
         }
@@ -365,6 +389,10 @@ struct PreferencesContentView: View {
 
     private var statsPage: some View {
         StatsDashboardView(extendedStats: scheduler.extendedStats)
+            .onAppear {
+                scheduler.updateWorkSession(now: .now)
+                scheduler.refreshStats()
+            }
     }
 
     private var advancedPage: some View {
@@ -380,7 +408,6 @@ struct PreferencesContentView: View {
 
             settingsCard(title: "App Behavior", subtitle: "Startup and system-level handling.") {
                 Toggle("Launch at login", isOn: $scheduler.launchAtLogin)
-                Toggle("Pause on lock/sleep", isOn: $scheduler.pauseOnSystemIdle)
                 Toggle("Pause when idle (5 min)", isOn: $scheduler.pauseWhenIdle)
             }
 
@@ -452,9 +479,8 @@ struct PreferencesContentView: View {
                 }
             }
 
-            settingsCard(title: "Device Awareness", subtitle: "Adapt reminders to power and display context.") {
-                Toggle("Adapt reminder timing by display context", isOn: $scheduler.deviceAwareModeEnabled)
-                Toggle("Lower intensity on battery / low power mode", isOn: $scheduler.reduceIntensityOnBattery)
+            settingsCard(title: "Energy saving", subtitle: "Reduces animation and dimming on battery. Break intervals and warnings stay unchanged. Locking or sleeping always suspends breaks.") {
+                Toggle("Reduce visual effects on battery / low power mode", isOn: $scheduler.reduceIntensityOnBattery)
                 statusStrip(title: "Display", detail: scheduler.deviceContextText)
                 statusStrip(title: "Power", detail: scheduler.powerContextText)
             }
@@ -552,33 +578,6 @@ struct PreferencesContentView: View {
                 }
             }
         }
-    }
-
-    private func protocolCard(_ preset: BreakScheduler.BreakProtocolPreset, subtitle: String) -> some View {
-        let selected = scheduler.protocolPreset == preset
-
-        return Button {
-            scheduler.protocolPreset = preset
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(preset.title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .padding(14)
-            .background(selected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(selected ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: selected ? 2 : 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func presetCard(_ preset: BreakScheduler.SetupPreset) -> some View {

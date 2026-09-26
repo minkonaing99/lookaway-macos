@@ -1,9 +1,8 @@
 import Foundation
 
 extension BreakScheduler {
-    func computeExtendedStats() -> ExtendedStatsSnapshot {
+    func computeExtendedStats(now today: Date = .now) -> ExtendedStatsSnapshot {
         let calendar = Calendar.current
-        let today = Date.now
 
         // Last 7 days chart data (oldest first for chronological display)
         var chartData: [DayChartEntry] = []
@@ -71,11 +70,30 @@ extension BreakScheduler {
             }
         }
 
+        let weeklyCounters = chartData.compactMap { dayStats[$0.id] }
+        let liveWorkSeconds = longestLiveWorkSeconds(at: today)
         return ExtendedStatsSnapshot(
             currentStreak: streak,
             completionRate: completionRate,
             bestDayOfWeek: bestWeekday,
-            weeklyChartData: chartData
+            weeklyChartData: chartData,
+            completedBreakSeconds: weeklyCounters.reduce(0) { $0 + ($1.completedBreakSeconds ?? 0) },
+            longestWorkSeconds: max(liveWorkSeconds, weeklyCounters.compactMap(\.longestWorkSeconds).max() ?? 0)
         )
+    }
+
+    private func longestLiveWorkSeconds(at now: Date) -> TimeInterval {
+        let calendar = Calendar.current
+        guard let start = workSessionStartedAt,
+              let weekStart = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)) else { return 0 }
+        var cursor = max(start, weekStart)
+        var longest: TimeInterval = 0
+        while cursor < now {
+            guard let boundary = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: cursor)) else { break }
+            let end = min(now, boundary)
+            longest = max(longest, end.timeIntervalSince(cursor))
+            cursor = end
+        }
+        return longest
     }
 }

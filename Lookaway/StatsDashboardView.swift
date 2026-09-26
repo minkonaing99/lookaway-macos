@@ -6,6 +6,11 @@ struct StatsDashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            Text("Recorded activity")
+                .font(.title2.weight(.semibold))
+            Text("Break minutes count completed timers, not confirmed time looking away. Work periods exclude breaks, pauses, meetings, focus blocks, and detected idle time. Durations start with this version; earlier history has counts only. Work periods are split at midnight.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             metricsRow
             weeklyChartCard
         }
@@ -19,14 +24,14 @@ struct StatsDashboardView: View {
                 unit: extendedStats.currentStreak == 1 ? "day" : "days"
             )
             metricCard(
-                title: "Completion",
-                value: "\(Int((extendedStats.completionRate * 100).rounded()))%",
-                unit: "this week"
+                title: "Completed breaks",
+                value: String(format: "%.1f", extendedStats.completedBreakSeconds / 60),
+                unit: "minutes in last 7 days"
             )
             metricCard(
-                title: "Best day",
-                value: extendedStats.bestDayOfWeek ?? "—",
-                unit: extendedStats.bestDayOfWeek != nil ? "on average" : "no data yet"
+                title: "Longest work period",
+                value: String(format: "%.1f", extendedStats.longestWorkSeconds / 60),
+                unit: "minutes in last 7 days"
             )
         }
     }

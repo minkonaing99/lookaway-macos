@@ -71,6 +71,7 @@ extension BreakScheduler {
 
     func runBreakTest() {
         guard !isShowingBreak else { return }
+        inputDeferralStartedAt = nil
 
         if savedNextBreakDateForTest == nil {
             savedNextBreakDateForTest = nextBreakDate
@@ -86,11 +87,22 @@ extension BreakScheduler {
     }
 
     func snooze(minutes: Int) {
+        guard minutes > 0, minutes <= 1440 else { return }
+        inputDeferralStartedAt = nil
+        let wasTest = isShowingTestBreak || isRunningBreakTest
         if isShowingBreak {
             mediaPlaybackController.endBreak()
             overlayController.hideOverlay()
             isShowingBreak = false
-            recordStat(\.snoozed)
+            activeBreakID = nil
+            activeBreakStartedAt = nil
+            activeBreakDeadline = nil
+            if !wasTest { recordStat(\.snoozed) }
+        }
+        if wasTest {
+            isShowingTestBreak = false
+            finishBreakTest()
+            return
         }
 
         nextBreakDate = .now.addingTimeInterval(TimeInterval(minutes * 60))
@@ -101,13 +113,16 @@ extension BreakScheduler {
     }
 
     func skipOnce() {
+        activeBreakID = nil
+        activeBreakStartedAt = nil
+        activeBreakDeadline = nil
         if isShowingBreak {
             mediaPlaybackController.endBreak()
             overlayController.hideOverlay()
             isShowingBreak = false
         }
 
-        if isShowingTestBreak {
+        if isShowingTestBreak || isRunningBreakTest {
             isShowingTestBreak = false
             finishBreakTest()
             return
@@ -121,7 +136,12 @@ extension BreakScheduler {
 
     func dismissBreakCompleted() {
         guard isShowingBreak else { return }
+        recordCompletedBreak(at: .now)
+        recordCycleCompletion()
         isShowingBreak = false
+        activeBreakID = nil
+        activeBreakStartedAt = nil
+        activeBreakDeadline = nil
         mediaPlaybackController.endBreak()
         overlayController.hideOverlay()
 
@@ -146,13 +166,17 @@ extension BreakScheduler {
     }
 
     func clearStatsHistory() {
+        workSessionStartedAt = nil
+        activeBreakStartedAt = nil
         dayStats = [:]
         UserDefaults.standard.removeObject(forKey: Keys.dayStats)
+        updateWorkSession(now: .now)
         refreshStats()
         lastBreakReasonText = "Local stats cleared"
     }
 
     func resetAllLocalData() {
+        resetBreakFlowSettings()
         let defaults = UserDefaults.standard
         let allKeys = [
             Keys.interval, Keys.restDuration, Keys.protocolPreset, Keys.breakStyle,
@@ -198,6 +222,8 @@ extension BreakScheduler {
         isRunningBreakTest = false
         isShowingTestBreak = false
         savedNextBreakDateForTest = nil
+        workSessionStartedAt = nil
+        activeBreakStartedAt = nil
         dayStats = [:]
         refreshStats()
         refreshContextSnapshot()

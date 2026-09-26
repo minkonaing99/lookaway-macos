@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import EventKit
 import IOKit.ps
 
 extension BreakScheduler {
@@ -10,40 +11,25 @@ extension BreakScheduler {
         let resign = center.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.stopTicker()
-                self.clearPreAlertUI()
-                self.webcamMonitor.stopMonitoring()
-                self.setAutoPause("session", active: self.pauseOnSystemIdle)
+                self.setSystemSuspension("session", active: true)
             }
         }
         let active = center.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.startTicker()
-                self.refreshWebcamMonitoring()
-                self.setAutoPause("session", active: false)
-                self.lastBreakReasonText = "Session resumed"
-                self.scheduleNextBreak(from: .now)
+                self.setSystemSuspension("session", active: false)
             }
         }
         let sleep = center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.stopTicker()
-                self.clearPreAlertUI()
-                self.webcamMonitor.stopMonitoring()
-                self.setAutoPause("sleep", active: self.pauseOnSystemIdle)
+                self.setSystemSuspension("sleep", active: true)
             }
         }
         let wake = center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.meetingCacheTimestamp = .distantPast
-                self.startTicker()
-                self.refreshWebcamMonitoring()
-                self.setAutoPause("sleep", active: false)
-                self.lastBreakReasonText = "Mac woke from sleep"
-                self.scheduleNextBreak(from: .now)
+                self.setSystemSuspension("sleep", active: false)
             }
         }
         let appActivated = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
@@ -55,12 +41,50 @@ extension BreakScheduler {
         workspaceObservers = [resign, active, sleep, wake, appActivated]
     }
 
+    func setSystemSuspension(_ reason: String, active: Bool) {
+        guard systemSuspensions.contains(reason) != active else { return }
+        systemSuspensions = active ? systemSuspensions.union([reason]) : systemSuspensions.subtracting([reason])
+        if active {
+            inputDeferralStartedAt = nil
+            endWorkSession(at: .now)
+            stopTicker()
+            clearPreAlertUI()
+            webcamMonitor.stopMonitoring()
+            // Keep ownership of paused media until the Mac is usable again.
+            isShowingBreak = false
+            activeBreakID = nil
+            activeBreakStartedAt = nil
+            activeBreakDeadline = nil
+            overlayController.hideOverlay()
+            isRunningBreakTest = false
+            isShowingTestBreak = false
+            savedNextBreakDateForTest = nil
+        }
+        setAutoPause(reason, active: active)
+        guard systemSuspensions.isEmpty else { return }
+        expireTimedPause(now: .now)
+        mediaPlaybackController.endBreak()
+        meetingCacheTimestamp = .distantPast
+        refreshWebcamMonitoring()
+        checkFrontmostApp()
+        checkIdleState()
+        scheduleNextBreak(from: .now)
+        updateWorkSession(now: .now)
+        lastBreakReasonText = "Mac active again; fresh break cycle started"
+        startTicker()
+    }
+
+    func handleDisplayChange() {
+        refreshContextSnapshot()
+        presentBreakOverlay()
+    }
+
     func setupSystemObservers() {
         let center = NotificationCenter.default
 
         let screensChanged = center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refreshContextSnapshot()
+                self?.handleDisplayChange()
             }
         }
 
@@ -70,7 +94,12 @@ extension BreakScheduler {
             }
         }
 
-        notificationObservers = [screensChanged, lowPowerChanged]
+        let calendarChanged = center.addObserver(forName: .EKEventStoreChanged, object: eventStore, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.meetingCacheTimestamp = .distantPast
+            }
+        }
+        notificationObservers = [screensChanged, lowPowerChanged, calendarChanged]
     }
 
     func setAutoPause(_ reason: String, active: Bool) {
@@ -84,6 +113,7 @@ extension BreakScheduler {
         let paused = manualPauseEnabled || !autoPauseReasons.isEmpty
         if isPaused != paused { isPaused = paused }
         if isPaused && !isRunningBreakTest {
+            inputDeferralStartedAt = nil
             clearPreAlertUI()
         } else if wasPaused && !isPaused && !isShowingBreak && !isRunningBreakTest {
             scheduleNextBreak(from: .now)
@@ -102,11 +132,7 @@ extension BreakScheduler {
         lastContextRefresh = .now
 
         let hasExternal = hasExternalDisplayConnected()
-        if deviceAwareModeEnabled {
-            deviceContextText = hasExternal ? "Display: external monitor connected, using slightly faster reminders." : "Display: laptop-only mode."
-        } else {
-            deviceContextText = hasExternal ? "Display: external monitor connected." : "Display: laptop-only mode."
-        }
+        deviceContextText = hasExternal ? "External monitor connected. Break timing stays unchanged." : "Laptop display. Break timing stays unchanged."
 
         let onBattery = isRunningOnBattery()
         let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled

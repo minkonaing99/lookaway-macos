@@ -9,10 +9,13 @@ final class RestOverlayWindow: NSWindow {
 @MainActor
 final class RestOverlayController {
     private var windows: [NSWindow] = []
+    var visibleDisplayCount: Int { windows.count }
 
     func showOverlay(
         restDuration: Int,
+        deadline: Date,
         style: BreakScheduler.BreakStyle,
+        isLongBreak: Bool,
         dimAmount: Double,
         showDisplayLabel: Bool,
         customPrompts: [String]?,
@@ -26,7 +29,6 @@ final class RestOverlayController {
         hideOverlay()
 
         let screens = NSScreen.screens
-        let deadline = Date.now.addingTimeInterval(TimeInterval(restDuration))
         for screen in screens {
             let window = RestOverlayWindow(
                 contentRect: screen.frame,
@@ -51,6 +53,7 @@ final class RestOverlayController {
                 restDuration: restDuration,
                 deadline: deadline,
                 style: style,
+                isLongBreak: isLongBreak,
                 dimAmount: dimAmount,
                 displayName: displayName,
                 customPrompts: customPrompts,

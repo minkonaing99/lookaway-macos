@@ -87,7 +87,42 @@ final class BreakScheduler: ObservableObject {
     }
 
     @Published var manualPauseEnabled = false {
-        didSet { refreshPauseState() }
+        didSet {
+            manualPauseResumeAt = nil
+            inputDeferralStartedAt = nil
+            refreshPauseState()
+            rearmTicker()
+        }
+    }
+
+    @Published var manualPauseResumeAt: Date? {
+        didSet {
+            if let manualPauseResumeAt {
+                persist(manualPauseResumeAt, key: Keys.manualPauseResumeAt)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.manualPauseResumeAt)
+            }
+            rearmTicker()
+        }
+    }
+
+    @Published var longBreaksEnabled: Bool {
+        didSet {
+            persist(longBreaksEnabled, key: Keys.longBreaksEnabled)
+            if !longBreaksEnabled { completedShortBreaks = 0 }
+        }
+    }
+    @Published var longBreakEvery: Int {
+        didSet { persist(longBreakEvery, key: Keys.longBreakEvery) }
+    }
+    @Published var longBreakDuration: LongBreakDuration {
+        didSet { persist(longBreakDuration.rawValue, key: Keys.longBreakDuration) }
+    }
+    @Published var completedShortBreaks: Int {
+        didSet { persist(completedShortBreaks, key: Keys.completedShortBreaks) }
+    }
+    @Published var hasCompletedOnboarding: Bool {
+        didSet { persist(hasCompletedOnboarding, key: Keys.hasCompletedOnboarding) }
     }
 
     @Published var launchAtLogin: Bool {
@@ -165,7 +200,7 @@ final class BreakScheduler: ObservableObject {
     @Published var delayDuringMeetings: Bool {
         didSet {
             persist(delayDuringMeetings, key: Keys.delayDuringMeetings)
-            if delayDuringMeetings {
+            if delayDuringMeetings, meetingEventsProvider == nil {
                 requestCalendarAccessIfNeeded()
             }
             refreshDerivedState(now: .now)
@@ -298,7 +333,7 @@ final class BreakScheduler: ObservableObject {
     // MARK: - Private state
 
     let overlayController = RestOverlayController()
-    let mediaPlaybackController = MediaPlaybackController()
+    let mediaPlaybackController: MediaPlaybackController
     let centerPreBreakBannerController = CenterPreBreakBannerController()
     let breakCompletionBadgeController = BreakCompletionBadgeController()
     let notificationManager = NotificationManager()
@@ -317,7 +352,7 @@ final class BreakScheduler: ObservableObject {
     var workspaceObservers: [Any] = []
     var notificationObservers: [Any] = []
     var meetingCacheTimestamp: Date = .distantPast
-    var cachedMeetingEvent: EKEvent?
+    var cachedMeetingEvents: [EKEvent] = []
     var lastContextRefresh: Date = .distantPast
     let shortBlockThreshold: TimeInterval = 10 * 60
     var activitySamples: [Bool] = []
@@ -325,13 +360,35 @@ final class BreakScheduler: ObservableObject {
     // Interval captured when the cycle was scheduled, so the menu bar ring
     // denominator stays fixed even if the adaptive multiplier shifts mid-cycle.
     var currentCycleIntervalSeconds: TimeInterval = 0
+    var activeBreakID: UUID?
+    var activeBreakStartedAt: Date?
+    var activeBreakDeadline: Date?
+    var activeBreakDuration: TimeInterval = 0
+    var activeBreakIsLong = false
+    var activeBreakCountsTowardCycle = false
+    var activeBreakStyle: BreakStyle = .eyes
+    var inputDeferralStartedAt: Date?
+    var inputGapSecondsProvider: (() -> TimeInterval)?
+    var mouseButtonDownProvider: (() -> Bool)?
+    var workSessionStartedAt: Date?
+    var lastStatsRefresh: Date = .distantPast
+    var systemSuspensions: Set<String> = []
+    var meetingEventsProvider: ((Date) -> [EKEvent])?
 
     // MARK: - Init / deinit
 
-    init(now: Date = .now) {
+    init(now: Date = .now, mediaPlaybackController: MediaPlaybackController? = nil) {
+        self.mediaPlaybackController = mediaPlaybackController ?? MediaPlaybackController()
         let defaults = UserDefaults.standard
         let loadedInterval = IntervalOption(rawValue: defaults.integer(forKey: Keys.interval)) ?? .min25
 
+        manualPauseResumeAt = defaults.object(forKey: Keys.manualPauseResumeAt) as? Date
+        longBreaksEnabled = defaults.bool(forKey: Keys.longBreaksEnabled)
+        let savedFrequency = defaults.object(forKey: Keys.longBreakEvery) as? Int ?? 4
+        longBreakEvery = (2...12).contains(savedFrequency) ? savedFrequency : 4
+        longBreakDuration = LongBreakDuration(rawValue: defaults.integer(forKey: Keys.longBreakDuration)) ?? .min5
+        completedShortBreaks = min(12, max(0, defaults.integer(forKey: Keys.completedShortBreaks)))
+        hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
         intervalOption = loadedInterval
         restDurationOption = RestDurationOption(rawValue: defaults.integer(forKey: Keys.restDuration)) ?? .sec20
         protocolPreset = BreakProtocolPreset(rawValue: defaults.string(forKey: Keys.protocolPreset) ?? "") ?? .custom
@@ -410,15 +467,16 @@ final class BreakScheduler: ObservableObject {
             }
         }
 
+        restoreTimedPause(now: now)
         applyProtocolIfNeeded()
         refreshStats()
         refreshContextSnapshot()
         refreshCalendarStatus(now: now)
         refreshDerivedState(now: now)
+        updateWorkSession(now: now)
         startTicker()
         setupWorkspaceObservers()
         setupSystemObservers()
-        if delayDuringMeetings { requestCalendarAccessIfNeeded() }
         if preAlertPresentation == .notification { notificationManager.requestAuthorization() }
         if pauseWhenCameraActive { webcamMonitor.startMonitoring(onActiveChanged: { [weak self] isActive in
             self?.setAutoPause("webcam", active: isActive)
